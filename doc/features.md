@@ -52,10 +52,7 @@ public sealed class BasicallyAStruct {
 Use the `abstract` keyword to allow functions with no implementations that
 inheritors have to implement. `abstract` and `sealed` are mutually exclusive.
 
-```csharp
-public abstract class Parent {
-    public abstract void DoSomething();
-}
+```csharp public abstract class Parent { public abstract void DoSomething(); }
 ```
 
 ## Discriminated Unions
@@ -205,7 +202,6 @@ public stackalloc Object Function() {
 }
 
 public static int Main() {
-    Object obj
     Object obj = Function();
 }
 ```
@@ -386,3 +382,39 @@ public macro Macro(Type t, i32 num) {
 ```
 
 # Error Handling
+
+Errors can be handled as values or exceptions in Beanie. 
+
+The existence of both styles of errors is because in game development unrecoverable errors may happen, and those exceptions should be able to be caught. 
+
+That being said, in most cases, error values should be used in place of exceptions.
+
+
+## Errors as exceptions
+Works like exceptions in other languages that have them, it breaks control flow and unwinds until it is caught.
+
+```csharp
+
+public void ThrowableMethod() {
+    // ... 
+    throw UnrecoverableError();
+}
+
+```
+
+## Errors as values
+Should be the **preferred** way of dealing with errors in Beanie using the `Res<T, E>` type.
+
+```csharp
+
+public Res<SuccessType, ErrorType> FailableMethod() {
+    // ...
+
+    return if ok { // `if` can be used as expressions
+        Res.Ok(successValue)
+    } else {
+        Res.Err(errValue)
+    };
+}
+
+```
