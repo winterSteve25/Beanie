@@ -12,4 +12,7 @@ Get started with learning this language by going to [features](doc/features.md).
 
 ## Current Progress
 
-Currently, Beanie is a language specification with no implemetations. But plans are in place to first implement a working interpreter of Beanie, LSP and package manager, then a LLVM compiler will be implemented after.
+Currently, Beanie is a language specification with no implementations. 
+But plans are in place to first implement a working interpreter of Beanie, 
+LSP, then a LLVM compiler will be implemented after along with a package
+manager.

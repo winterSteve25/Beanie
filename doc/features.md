@@ -52,7 +52,10 @@ public sealed class BasicallyAStruct {
 Use the `abstract` keyword to allow functions with no implementations that
 inheritors have to implement. `abstract` and `sealed` are mutually exclusive.
 
-```csharp public abstract class Parent { public abstract void DoSomething(); }
+```csharp 
+public abstract class Parent { 
+    public abstract void DoSomething();
+}
 ```
 
 ## Discriminated Unions
@@ -66,7 +69,7 @@ public union DiscriminatedUnion<T, E> {
     SimpleNamed(T t, E e, i32 num);
     
     public i32 Method() {
-        switch this { // pattern matching
+        match this { // pattern matching
             case Simple(t, e, 25) => {
                 Console.WriteLine(t);
                 Console.WriteLine(e);
@@ -74,7 +77,7 @@ public union DiscriminatedUnion<T, E> {
             _ => {},
         };
             
-        return switch this {
+        return match this {
             case Simple(_, _, i) => i,
             case SimpleNamed(_, _, num) => num,
         };
@@ -265,65 +268,52 @@ public static int Main(string[] args) {
 
 ```
 
-# Compile Time Code
+# Error Handling
 
-## Generics
+Errors can be handled as values or exceptions in Beanie.
 
-There are 2 types of generics in Beanie.
+The existence of both styles of errors is because in game development unrecoverable errors may happen, and those
+exceptions should be able to be caught.
 
-1. Compile time generic
-2. Runtime generic
+That being said, in most cases, error values should be used in place of exceptions.
 
-### Compile Time
+## Errors as exceptions
 
-Compile time generics are expanded into separate types with the different types of generic parameters.
-
-For example:
+Works like exceptions in other languages that have them, it breaks control flow and unwinds until it is caught.
 
 ```csharp
-public class CompileTimeGeneric<comp T> {
-    // ...
+
+public void ThrowableMethod() {
+    // ... 
+    throw UnrecoverableError();
 }
 
-public static int Main(string[] args) {
-    CompileTimeGeneric<string> a;
-    CompileTimeGeneric<i32> b;
-    CompileTimeGeneric<i64> c;
-}
 ```
 
-It will compile into 3 separate classes with `T` replaced by `string`, `i32`, and `i64` each.
+## Errors as values
 
-### Runtime
-
-Runtime generics are similar to Java generics, where type erasure is used.
-
-For example:
+Should be the **preferred** way of dealing with errors in Beanie using the `Res<T, E>` type.
 
 ```csharp
-public class CompileTimeGeneric<T> {
+
+public Res<SuccessType, ErrorType> FailableMethod() {
     // ...
+
+    return if ok { // `if` can be used as expressions
+        Res.Ok(successValue)
+    } else {
+        Res.Err(errValue)
+    };
 }
 
-public static int Main(string[] args) {
-    CompileTimeGeneric<string> a;
-    CompileTimeGeneric<i32> b;
-    CompileTimeGeneric<i64> c;
-}
 ```
 
-When compiled, `T` will be replaced by `object` making the 3 different types the same.
-However, type checking occur during compile time to make sure everything is correct.
-
-With Runtime Generics you can use types like `List<? extends SomeInterface>` but this
-will not be possible with compile time generics.
-
-## Code Generation
+# Code Generation
 
 Metaprogramming can make a lot of fancy magic happen.
 There are a few different ways of generating code at compile time in Beanie.
 
-### Attributes
+## Attributes
 
 Attributes are denoted as `[Attribute]` in Beanie similar to C#
 To create one, create a sealed class that extends either `ConstructAttr` or `FunctionAttr`
@@ -333,7 +323,7 @@ import Beanie.Compiler;
 
 public sealed class ExampleConstructAttribute : IConstructAttr {
     public void Transform(Construct construct) {
-        switch construct {
+        match construct {
             case Class(/*...*/) => {
                 // ... transform class object
                 // add fields
@@ -363,7 +353,7 @@ public sealed class ExampleFunctionAttribute : FunctionAttr {
 }
 ```
 
-### Macros
+## Macros
 
 Similar to rust macros, they are functions that are run during compile time
 that expands into more code.
@@ -372,49 +362,66 @@ that expands into more code.
 import Beanie.Compiler;
 
 public macro Macro(Type t, i32 num) {
-    i32 num = num * num;
+    i32 num2 = num * num;
     
-    return {
+    if (num > 10) {
+        return Res.Err(Compiler.Error("Number must be less than 10").At(num));
+    }
+    
+    return Res.Ok({
         i32 hallo = @{num}; // @{} will run code from the macro
         Console.WriteLine(f"${@{t.Name}}: ${hallo}")
-    }; // this block will be inserted into where the macro is called
+    }); // this block will be inserted into where the macro is called
 }
 ```
 
-# Error Handling
+# Generics
 
-Errors can be handled as values or exceptions in Beanie. 
+There are 2 types of generics in Beanie.
 
-The existence of both styles of errors is because in game development unrecoverable errors may happen, and those exceptions should be able to be caught. 
+1. Compile time generic
+2. Runtime generic
 
-That being said, in most cases, error values should be used in place of exceptions.
+## Compile Time
 
+Compile time generics are expanded into separate types with the different types of generic parameters.
 
-## Errors as exceptions
-Works like exceptions in other languages that have them, it breaks control flow and unwinds until it is caught.
-
-```csharp
-
-public void ThrowableMethod() {
-    // ... 
-    throw UnrecoverableError();
-}
-
-```
-
-## Errors as values
-Should be the **preferred** way of dealing with errors in Beanie using the `Res<T, E>` type.
+For example:
 
 ```csharp
-
-public Res<SuccessType, ErrorType> FailableMethod() {
+public macro class CompileTimeGeneric<Type T, i32 E> {
     // ...
-
-    return if ok { // `if` can be used as expressions
-        Res.Ok(successValue)
-    } else {
-        Res.Err(errValue)
-    };
 }
 
+public static int Main(string[] args) {
+    CompileTimeGeneric<string> a;
+    CompileTimeGeneric<i32> b;
+    CompileTimeGeneric<i64> c;
+}
 ```
+
+It will compile into 3 separate classes with `T` replaced by `string`, `i32`, and `i64` each.
+
+## Runtime
+
+Runtime generics are similar to Java generics, where type erasure is used.
+
+For example:
+
+```csharp
+public class RuntimeGeneric<T> {
+    // ...
+}
+
+public static int Main(string[] args) {
+    RuntimeGeneric<string> a;
+    RuntimeGeneric<i32> b;
+    RuntimeGeneric<i64> c;
+}
+```
+
+When compiled, `T` will be replaced by `object` making the 3 different types the same.
+However, type checking occur during compile time to make sure everything is correct.
+
+With Runtime Generics you can use types like `List<? extends SomeInterface>` but this
+will not be possible with compile time generics.
