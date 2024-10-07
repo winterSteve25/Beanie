@@ -91,14 +91,10 @@ public class Lexer
             ']' => TokenOfLen(1, TokenType.SquareRight),
             '+' => TokenOfLen(1, TokenType.Plus),
             '-' => TokenOfLen(1, TokenType.Minus),
-            '*' => Peek() == '/'
-                ? TokenOfLen(2, TokenType.CommentEnd)
-                : TokenOfLen(1, TokenType.Star),
+            '*' => TokenOfLen(1, TokenType.Star),
             '/' => Peek() == '/'
-                ? TokenOfLen(2, TokenType.Comment)
-                : Peek() == '*'
-                    ? TokenOfLen(2, TokenType.CommentStart)
-                    : TokenOfLen(1, TokenType.Slash),
+                ? SkipComment()
+                : TokenOfLen(1, TokenType.Slash),
             '%' => TokenOfLen(1, TokenType.Percent),
             '"' => TokenizeString(),
             _ => null,
@@ -241,6 +237,11 @@ public class Lexer
             }
             
             return (new Token(i, newI, line, TokenType.Identifier, source.Substring(i, newI - i)), newI, line);
+        }
+
+        (Token, int, int) SkipComment()
+        {
+            return (null, source.AsSpan(i).IndexOf('\n') + 1 + i, line + 1)!;
         }
 
         #endregion

@@ -400,38 +400,20 @@ public class LexerTest
     }
 
     [TestMethod]
-    public void Comment()
+    public void TokenCombinationWithComment()
     {
-        var (tokens, errors) = Lexer.Tokenize("// comment");
-        Assert.AreEqual(1, tokens.Count);
-        Assert.AreEqual(0, errors.Count);
-        Assert.AreEqual(new Token(0, 10, 0, TokenType.Comment, null), tokens[0]);
-    }
+        var (tokens, errors) = Lexer.Tokenize("public class MyClass // this is a comment\nprivate return;");
+        List<Token> expectedTokens =
+        [
+            new Token(0, 6, 0, TokenType.Public, null),
+            new Token(7, 12, 0, TokenType.Class, null),
+            new Token(13, 20, 0, TokenType.Identifier, "MyClass"),
+            new Token(42, 49, 1, TokenType.Private, null),
+            new Token(50, 56, 1, TokenType.Return, null),
+            new Token(56, 57, 1, TokenType.Semicolon, null),
+        ];
 
-    [TestMethod]
-    public void CommentStart()
-    {
-        var (tokens, errors) = Lexer.Tokenize("/*");
-        Assert.AreEqual(1, tokens.Count);
         Assert.AreEqual(0, errors.Count);
-        Assert.AreEqual(new Token(0, 2, 0, TokenType.CommentStart, null), tokens[0]);
-    }
-
-    [TestMethod]
-    public void CommentEnd()
-    {
-        var (tokens, errors) = Lexer.Tokenize("*/");
-        Assert.AreEqual(1, tokens.Count);
-        Assert.AreEqual(0, errors.Count);
-        Assert.AreEqual(new Token(0, 2, 0, TokenType.CommentEnd, null), tokens[0]);
-    }
-
-    [TestMethod]
-    public void EndOfFile()
-    {
-        var (tokens, errors) = Lexer.Tokenize("");
-        Assert.AreEqual(1, tokens.Count);
-        Assert.AreEqual(0, errors.Count);
-        Assert.AreEqual(new Token(0, 0, 0, TokenType.EndOfFile, null), tokens[0]);
+        CollectionAssert.AreEqual(expectedTokens, tokens);
     }
 }

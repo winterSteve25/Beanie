@@ -74,11 +74,8 @@ public enum TokenType
     Slash, // /
     Percent, // %
     
-    Comment, // //
-    CommentStart, // /*
-    CommentEnd, // */
-    
+    // following are not produced by lexer
     Unknown,
-    NewLine,
+    NewLine, 
     EndOfFile,
 }
