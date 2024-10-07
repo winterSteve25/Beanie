@@ -7,7 +7,7 @@ namespace Parser;
 
 public class Lexer
 {
-    private static readonly Regex Ident = new Regex(@"[A-Za-z_]+[A-Za-z_0-9]*");
+    private static readonly Regex Ident = new Regex(@"[A-Za-z_0-9]");
     private static readonly Regex Number = new Regex(@"[0-9.]");
 
     public static (List<Token>, List<IError>) Tokenize(string source)
@@ -18,7 +18,7 @@ public class Lexer
 
         while (n.Item1 is null || n.Item1.Type != TokenType.EndOfFile)
         {
-            if (n.Item1 is not null)
+            if (n.Item1 is not null && n.Item1.Type != TokenType.NewLine)
                 ts.Add(n.Item1);
             n = Next(source, n.Item2, n.Item3, es);
         }
@@ -38,6 +38,7 @@ public class Lexer
         (Token?, int, int)? token = c switch
         {
             '\n' => (new Token(i, i + 1, line, TokenType.NewLine, null), i + 1, line + 1),
+            '\r' => (null, i + 1, line)!,
             'p' => MatchesTokenName(TokenType.Public) ??
                    MatchesTokenName(TokenType.Private) ??
                    MatchesTokenName(TokenType.Protected),
@@ -98,6 +99,7 @@ public class Lexer
                 : Peek() == '*'
                     ? TokenOfLen(2, TokenType.CommentStart)
                     : TokenOfLen(1, TokenType.Slash),
+            '%' => TokenOfLen(1, TokenType.Percent),
             '"' => TokenizeString(),
             _ => null,
         };
@@ -117,11 +119,11 @@ public class Lexer
         // ReSharper disable once InvertIf
         if (token is null)
         {
-            token = TokenOfLen(1, TokenType.Unknown, c);
-            errs.Add(new UnknownTokenError(token.Value.Item1!));
+            errs.Add(new UnknownTokenError(new Token(i, i + 1, line, TokenType.Unknown, c)));
+            return (null, i + 1, line);
         }
 
-        return token ?? (null, i + 1, line);
+        return token.Value;
 
         #region helpers
 
@@ -147,7 +149,7 @@ public class Lexer
             if (i >= source.Length)
             {
                 if (errIfEnd)
-                    errs.Add(new UnexpectedEofError(i, line));
+                    errs.Add(new UnexpectedEofError(line));
                 return false;
             }
 
@@ -164,7 +166,7 @@ public class Lexer
             return source[i + 1];
         }
 
-        (Token, int, int) TokenizeNumber(bool startWithDecimal)
+        (Token, int, int) TokenizeNumber(bool hadDecimal)
         {
             int newI = i + 1;
 
@@ -186,10 +188,12 @@ public class Lexer
                     }
 
                     // if started with decimal then this dot doesn't make sense as a decimal so we end here
-                    if (startWithDecimal)
+                    if (hadDecimal)
                     {
                         break;
                     }
+
+                    hadDecimal = true;
                 }
                 
                 newI += 1;
@@ -236,7 +240,7 @@ public class Lexer
                 newI++;
             }
             
-            return (new Token(i, newI, line, TokenType.LiteralString, source.Substring(i, newI - i)), newI, line);
+            return (new Token(i, newI, line, TokenType.Identifier, source.Substring(i, newI - i)), newI, line);
         }
 
         #endregion
