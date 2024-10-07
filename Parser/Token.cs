@@ -10,6 +10,11 @@ public record Token(
 {
     public override string ToString()
     {
+        if (TokenData is not null)
+        {
+            return $"{Type} at {Start}:{End} on line {Line} with data '{TokenData}'";
+        }
+        
         return $"{Type} at {Start}:{End} on line {Line}";
     }
 }
@@ -67,11 +72,13 @@ public enum TokenType
     Minus, // -
     Star, // *
     Slash, // /
+    Percent, // %
     
     Comment, // //
     CommentStart, // /*
     CommentEnd, // */
     
     Unknown,
-    EndOfFile
+    NewLine,
+    EndOfFile,
 }

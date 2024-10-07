@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.Text;
+using System.Text.RegularExpressions;
 using ErrFmt;
 using Parser.Errors;
 
@@ -7,226 +8,237 @@ namespace Parser;
 public class Lexer
 {
     private static readonly Regex Ident = new Regex(@"[A-Za-z_]+[A-Za-z_0-9]*");
-    private static readonly Regex Number = new Regex(@"[0-9]");
+    private static readonly Regex Number = new Regex(@"[0-9.]");
 
-    private int _pointer;
-    private int _line;
-
-    private readonly string[] _source;
-
-    public Lexer(string source)
-    {
-        _source = source.Split("\n");
-        _pointer = 0;
-        _line = 0;
-    }
-
-    public (List<Token>, List<IError>) Lex()
+    public static (List<Token>, List<IError>) Tokenize(string source)
     {
         var ts = new List<Token>();
         var es = new List<IError>();
-        var n = Next(es);
-        
-        while (n is null || n.Type != TokenType.EndOfFile)
+        var n = Next(source, 0, 0, es);
+
+        while (n.Item1 is null || n.Item1.Type != TokenType.EndOfFile)
         {
-            if (n is not null)
-                ts.Add(n);
-            n = Next(es);
+            if (n.Item1 is not null)
+                ts.Add(n.Item1);
+            n = Next(source, n.Item2, n.Item3, es);
         }
 
         return (ts, es);
     }
 
-    private Token? Next(List<IError> errs)
+    private static (Token?, int, int) Next(string source, int i, int line, List<IError> errs)
     {
-        if (_line >= _source.Length)
+        if (i >= source.Length)
         {
-            return new Token(_pointer, _pointer, _line, TokenType.EndOfFile, null);
+            return (new Token(i, i, line, TokenType.EndOfFile, null), i, line);
         }
 
-        var line = _source[_line];
+        var c = source[i];
 
-        if (_pointer >= line.Length)
+        (Token?, int, int)? token = c switch
         {
-            return new Token(_pointer, _pointer, _line, TokenType.EndOfFile, null);
-        }
-
-        var ptrChar = line[_pointer];
-
-        Token? t = ptrChar switch
-        {
-            'p' => MatchesWord(line, TokenType.Public) ??
-                   MatchesWord(line, TokenType.Private) ??
-                   MatchesWord(line, TokenType.Protected),
-            'c' => MatchesWord(line, TokenType.Class),
-            's' => MatchesWord(line, TokenType.Set) ??
-                   MatchesWord(line, TokenType.Sealed) ??
-                   MatchesWord(line, TokenType.StackAlloc),
-            'a' => MatchesWord(line, TokenType.Abstract),
-            'u' => MatchesWord(line, TokenType.Union),
-            'e' => MatchesWord(line, TokenType.Enum),
-            'i' => MatchesWord(line, TokenType.Interface) ??
-                   MatchesWord(line, TokenType.If),
-            't' => MatchesWord(line, TokenType.This) ??
-                   MatchesWord(line, TokenType.Type) ??
-                   MatchesWord(line, "true", TokenType.LiteralBool, true),
-            'n' => MatchesWord(line, TokenType.Namespace),
-            'm' => MatchesWord(line, TokenType.Match) ??
-                   MatchesWord(line, TokenType.Macro),
-            'g' => MatchesWord(line, TokenType.Get),
-            'f' => MatchesWord(line, TokenType.For) ??
-                   MatchesWord(line, "false", TokenType.LiteralBool, false),
-            'w' => MatchesWord(line, TokenType.While),
-            'r' => MatchesWord(line, TokenType.Return),
-            '>' => PeekNoWs() == '='
-                ? new Token(_pointer, _pointer += 2, _line, TokenType.GreaterThanEquality, null)
-                : new Token(_pointer, _pointer += 1, _line, TokenType.GreaterThan, null),
-            '<' => PeekNoWs() == '='
-                ? new Token(_pointer, _pointer += 2, _line, TokenType.LessThanEquality, null)
-                : new Token(_pointer, _pointer += 1, _line, TokenType.LessThan, null),
-            '=' => PeekNoWs() == '='
-                ? new Token(_pointer, _pointer += 2, _line, TokenType.Equality, null)
-                : PeekNoWs() == '>'
-                    ? new Token(_pointer, _pointer += 2, _line, TokenType.Arrow, null)
-                    : new Token(_pointer, _pointer += 1, _line, TokenType.Equals, null),
-            '!' => PeekNoWs() == '='
-                ? new Token(_pointer, _pointer += 2, _line, TokenType.NotEqual, null)
+            '\n' => (new Token(i, i + 1, line, TokenType.NewLine, null), i + 1, line + 1),
+            'p' => MatchesTokenName(TokenType.Public) ??
+                   MatchesTokenName(TokenType.Private) ??
+                   MatchesTokenName(TokenType.Protected),
+            'c' => MatchesTokenName(TokenType.Class),
+            's' => MatchesTokenName(TokenType.Set) ??
+                   MatchesTokenName(TokenType.Sealed) ??
+                   MatchesTokenName(TokenType.StackAlloc),
+            'a' => MatchesTokenName(TokenType.Abstract),
+            'u' => MatchesTokenName(TokenType.Union),
+            'e' => MatchesTokenName(TokenType.Enum),
+            'i' => MatchesTokenName(TokenType.Interface) ??
+                   MatchesTokenName(TokenType.If),
+            't' => MatchesTokenName(TokenType.This) ??
+                   MatchesTokenName(TokenType.Type) ??
+                   MatchesWord("true", TokenType.LiteralBool, true),
+            'n' => MatchesTokenName(TokenType.Namespace),
+            'm' => MatchesTokenName(TokenType.Match) ??
+                   MatchesTokenName(TokenType.Macro),
+            'g' => MatchesTokenName(TokenType.Get),
+            'f' => MatchesTokenName(TokenType.For) ??
+                   MatchesWord("false", TokenType.LiteralBool, false),
+            'w' => MatchesTokenName(TokenType.While),
+            'r' => MatchesTokenName(TokenType.Return),
+            ' ' => (null, i + 1, line)!,
+            '\t' => (null, i + 1, line)!,
+            '>' => Peek() == '='
+                ? TokenOfLen(2, TokenType.GreaterThanEquality)
+                : TokenOfLen(1, TokenType.GreaterThan),
+            '<' => Peek() == '='
+                ? TokenOfLen(2, TokenType.LessThanEquality)
+                : TokenOfLen(1, TokenType.LessThan),
+            '=' => Peek() == '='
+                ? TokenOfLen(2, TokenType.Equality)
+                : Peek() == '>'
+                    ? TokenOfLen(2, TokenType.Arrow)
+                    : TokenOfLen(1, TokenType.Equals),
+            '!' => Peek() == '='
+                ? TokenOfLen(2, TokenType.NotEqual)
                 : null,
-            ',' => new Token(_pointer, _pointer += 1, _line, TokenType.Comma, null),
-            '.' => Number.IsMatch(PeekNoWs().ToString()!)
-                ? ConsumeAsNumber()
-                : new Token(_pointer, _pointer += 1, _line, TokenType.Dot, null),
-            ';' => new Token(_pointer, _pointer += 1, _line, TokenType.Semicolon, null),
-            '(' => new Token(_pointer, _pointer += 1, _line, TokenType.ParenLeft, null),
-            ')' => new Token(_pointer, _pointer += 1, _line, TokenType.ParenRight, null),
-            '{' => new Token(_pointer, _pointer += 1, _line, TokenType.CurlyLeft, null),
-            '}' => new Token(_pointer, _pointer += 1, _line, TokenType.CurlyRight, null),
-            '[' => new Token(_pointer, _pointer += 1, _line, TokenType.SquareLeft, null),
-            ']' => new Token(_pointer, _pointer += 1, _line, TokenType.SquareRight, null),
-            '+' => new Token(_pointer, _pointer += 1, _line, TokenType.Plus, null),
-            '-' => new Token(_pointer, _pointer += 1, _line, TokenType.Minus, null),
-            '*' => PeekNoWs() == '/'
-                ? new Token(_pointer, _pointer += 2, _line, TokenType.CommentEnd, null)
-                : new Token(_pointer, _pointer += 1, _line, TokenType.Star, null),
-            '/' => PeekNoWs() == '/'
-                ? new Token(_pointer, _pointer += 2, _line, TokenType.Comment, null)
-                : PeekNoWs() == '*'
-                    ? new Token(_pointer, _pointer += 2, _line, TokenType.CommentStart, null)
-                    : new Token(_pointer, _pointer += 1, _line, TokenType.Slash, null),
-            '"' => ConsumeAsString(),
+            ',' => TokenOfLen(1, TokenType.Comma),
+            '.' => IsMatch(i + 1, x => Number.IsMatch(x.ToString()), false)
+                ? TokenizeNumber(true)
+                : TokenOfLen(1, TokenType.Dot),
+            ';' => TokenOfLen(1, TokenType.Semicolon),
+            '(' => TokenOfLen(1, TokenType.ParenLeft),
+            ')' => TokenOfLen(1, TokenType.ParenRight),
+            '{' => TokenOfLen(1, TokenType.CurlyLeft),
+            '}' => TokenOfLen(1, TokenType.CurlyRight),
+            '[' => TokenOfLen(1, TokenType.SquareLeft),
+            ']' => TokenOfLen(1, TokenType.SquareRight),
+            '+' => TokenOfLen(1, TokenType.Plus),
+            '-' => TokenOfLen(1, TokenType.Minus),
+            '*' => Peek() == '/'
+                ? TokenOfLen(2, TokenType.CommentEnd)
+                : TokenOfLen(1, TokenType.Star),
+            '/' => Peek() == '/'
+                ? TokenOfLen(2, TokenType.Comment)
+                : Peek() == '*'
+                    ? TokenOfLen(2, TokenType.CommentStart)
+                    : TokenOfLen(1, TokenType.Slash),
+            '"' => TokenizeString(),
             _ => null,
         };
 
-        if (t is null)
+        if (token is null)
         {
-            if (Number.IsMatch(ptrChar.ToString()))
+            if (Number.IsMatch(c.ToString()))
             {
-                t = ConsumeAsNumber();
+                token = TokenizeNumber(false);
             }
-            else if (Ident.IsMatch(ptrChar.ToString()))
+            else if (Ident.IsMatch(c.ToString()))
             {
-                var match = Ident.Match(line, _pointer);
-                var ident = match.Value;
-                t = new Token(_pointer, _pointer += ident.Length, _line, TokenType.Identifier, ident);
+                token = TokenizeIdent();
             }
         }
 
-        _pointer++;
-        var ptrCopy = _pointer;
-        if (_pointer >= line.Length && (_line + 1) < _source.Length)
+        // ReSharper disable once InvertIf
+        if (token is null)
         {
-            _line++;
-            _pointer = 0;
+            token = TokenOfLen(1, TokenType.Unknown, c);
+            errs.Add(new UnknownTokenError(token.Value.Item1!));
         }
 
-        if (t is null)
+        return token ?? (null, i + 1, line);
+
+        #region helpers
+
+        (Token, int, int) TokenOfLen(int len, TokenType type, object? data = null)
         {
-            var nextWs = line.AsSpan(ptrCopy).IndexOfAny(' ', '\t');
-            var end = nextWs == -1 ? line.Length : nextWs;
-            errs.Add(new UnknownTokenError(new Token(ptrCopy, end, _line, TokenType.Unknown,
-                line.AsSpan(ptrCopy, end - ptrCopy).ToString())));
-            return null;
+            return (new Token(i, i + len, line, type, data), i + len, line);
         }
-        
-        return t;
 
-        Token? ConsumeAsString()
+        (Token, int, int)? MatchesTokenName(TokenType tokenType, object? data = null)
         {
-            int startOfStr = _pointer;
+            return MatchesWord(tokenType.ToString().ToLower(), tokenType, data);
+        }
 
-            while (PeekNoWs(false) != '"')
+        (Token, int, int)? MatchesWord(string word, TokenType tokenType, object? data = null)
+        {
+            if (!source.AsSpan(i).StartsWith(word)) return null;
+            var tok = new Token(i, i + word.Length, line, tokenType, data);
+            return (tok, i + word.Length, line);
+        }
+
+        bool IsMatch(int i, Func<char, bool> predicate, bool errIfEnd)
+        {
+            if (i >= source.Length)
             {
-                _pointer++;
+                if (errIfEnd)
+                    errs.Add(new UnexpectedEofError(i, line));
+                return false;
             }
 
-            _pointer++;
-            return new Token(startOfStr, _pointer, _line, TokenType.LiteralString,
-                line.Substring(startOfStr, _pointer - startOfStr));
+            return predicate(source[i]);
         }
-
-        Token? ConsumeAsNumber()
-        {
-            int startOfNum = _pointer;
-
-            while (Number.IsMatch(PeekNoWs(false).ToString()!))
-            {
-                _pointer++;
-            }
-
-            return new Token(startOfNum, _pointer, _line, TokenType.LiteralNumber,
-                line.Substring(startOfNum, _pointer - startOfNum));
-        }
-    }
-
-    private char? PeekNoWs(bool moveLines = true)
-    {
-        int prevPtr = _pointer;
-        int prevLine = _line;
-
-        char? c = Peek();
-
-        while (c is ' ' or '\t')
-        {
-            c = Peek();
-        }
-
-        _pointer = prevPtr;
-        _line = prevLine;
-
-        return c;
 
         char? Peek()
         {
-            var pointerOverflow = (_pointer + 1) >= _source[_line].Length;
-            if (!pointerOverflow) return _source[_line][_pointer + 1];
-
-            if (!moveLines)
+            if (i + 1 >= source.Length)
             {
                 return null;
             }
 
-            if ((_line + 1) >= _source.Length)
-            {
-                return null;
-            }
-
-            _pointer = 0;
-            _line++;
-
-            return _source[_line][_pointer];
+            return source[i + 1];
         }
-    }
 
-    private Token? MatchesWord(string line, TokenType tokenType, object? data = null)
-    {
-        return MatchesWord(line, tokenType.ToString(), tokenType, data);
-    }
+        (Token, int, int) TokenizeNumber(bool startWithDecimal)
+        {
+            int newI = i + 1;
 
-    private Token? MatchesWord(string line, string word, TokenType tokenType, object? data = null)
-    {
-        if (!line.AsSpan(_pointer).StartsWith(word)) return null;
-        var tok = new Token(_pointer, _pointer + word.Length, _line, tokenType, data);
-        _pointer += word.Length;
-        return tok;
+            while (IsMatch(newI, x => Number.IsMatch(x.ToString()), false)) {
+
+                // reached a dot
+                if (IsMatch(newI, x => x == '.', false))
+                {
+                    // if the dot is at the end of the number
+                    // and is followed by a possible ident
+                    // ignore the dot
+                    if (IsMatch(newI + 1, x =>
+                        {
+                            var s = x.ToString();
+                            return !Number.IsMatch(s) && Ident.IsMatch(s);
+                        }, false))
+                    {
+                        break;
+                    }
+
+                    // if started with decimal then this dot doesn't make sense as a decimal so we end here
+                    if (startWithDecimal)
+                    {
+                        break;
+                    }
+                }
+                
+                newI += 1;
+            }
+
+            return (new Token(i, newI, line, TokenType.LiteralNumber, source.Substring(i, newI - i)), newI, line);
+        }
+
+        (Token, int, int) TokenizeString()
+        {
+            StringBuilder sb = new StringBuilder();
+            int newI = i + 1;
+            
+            while (IsMatch(newI, x => x != '"', true))
+            {
+                // escaped character so immediately consume it
+                if (source[newI] == '\\')
+                {
+                    if (IsMatch(newI + 1, x => x != '"', true))
+                    {
+                        sb.Append(source[newI]);
+                    }
+                    
+                    newI++;
+                }
+                
+                sb.Append(source[newI]);
+                newI++;
+            }
+            
+            // consume the ending "
+            newI++;
+            string complete = sb.ToString();
+            
+            return (new Token(i, newI, line, TokenType.LiteralString, complete), newI, line);
+        }
+        
+        (Token, int, int) TokenizeIdent()
+        {
+            int newI = i + 1;
+            
+            while (IsMatch(newI, x => Ident.IsMatch(x.ToString()), false))
+            {
+                newI++;
+            }
+            
+            return (new Token(i, newI, line, TokenType.LiteralString, source.Substring(i, newI - i)), newI, line);
+        }
+
+        #endregion
     }
 }

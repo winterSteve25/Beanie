@@ -2,7 +2,7 @@ using ErrFmt;
 
 namespace Parser.Errors;
 
-public record UnexpectedTokenError(Token Token) : IError
+public record struct UnexpectedTokenError(Token Token) : IError
 {
     public string Display(IErrorFormatter formatter)
     {
