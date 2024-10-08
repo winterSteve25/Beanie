@@ -2,5 +2,5 @@
 
 public interface IError
 {
-    string Display(IErrorFormatter formatter);
+    void Report(IErrorReporter reporter);
 }

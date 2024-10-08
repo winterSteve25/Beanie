@@ -5,10 +5,7 @@
         <LangVersion>latestmajor</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>ErrFmt</RootNamespace>
     </PropertyGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\ErrFmt\ErrFmt.csproj" />
-    </ItemGroup>
 
 </Project>

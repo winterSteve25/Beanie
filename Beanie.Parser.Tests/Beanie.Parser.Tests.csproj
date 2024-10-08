@@ -4,6 +4,8 @@
     <TargetFrameworks>net8.0</TargetFrameworks>
     
     <IsPackable>false</IsPackable>
+    
+    <RootNamespace>Parser.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Parser\Parser.csproj" />
+    <ProjectReference Include="..\Beanie.Parser\Beanie.Parser.csproj" />
   </ItemGroup>
   
 </Project>

@@ -254,6 +254,15 @@ public class LexerTest
         Assert.AreEqual(0, errors.Count);
         Assert.AreEqual(new Token(0, 2, 0, TokenType.NotEqual, null), tokens[0]);
     }
+    
+    [TestMethod]
+    public void Bang()
+    {
+        var (tokens, errors) = Lexer.Tokenize("!");
+        Assert.AreEqual(1, tokens.Count);
+        Assert.AreEqual(0, errors.Count);
+        Assert.AreEqual(new Token(0, 1, 0, TokenType.Bang, null), tokens[0]);
+    }
 
     [TestMethod]
     public void Equals()

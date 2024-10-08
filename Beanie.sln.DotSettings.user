@@ -1,11 +1,23 @@
 ﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
 	<s:String x:Key="/Default/Environment/UnitTesting/CreateUnitTestDialog/TestProjectMapping/=D79F5B8E_002D76C8_002D40A5_002D810D_002D12DAD4A8BE2B/@EntryIndexedValue">Parser.Tests</s:String>
 	<s:String x:Key="/Default/Environment/UnitTesting/CreateUnitTestDialog/TestTemplateMapping/=MSTest/@EntryIndexedValue">d6790ab7-33c2-4425-b2c9-51480cd1a852</s:String>
-	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=19032907_002D4797_002D4677_002D832a_002D745158827d9a/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="LexerTest" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=60209900_002D401b_002D4e6d_002Dab93_002D083c593fd659/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="Number_StartWithDecimal" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;MSTest::044D9745-3268-443C-BED5-D8233C8179F1::net8.0::Parser.Tests.LexerTest.Number_StartWithDecimal&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=8b432165_002Deac0_002D4b00_002Da3d2_002D1db71e6d3671/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="LexerTest" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;TestAncestor&gt;&#xD;
     &lt;TestId&gt;MSTest::044D9745-3268-443C-BED5-D8233C8179F1::net8.0::Parser.Tests.LexerTest&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String>
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=9abfc829_002Dab96_002D42a9_002D85d3_002Daf4d185184a2/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="Number_StartWithDecimal #2" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+  &lt;TestAncestor&gt;&#xD;
+    &lt;TestId&gt;MSTest::044D9745-3268-443C-BED5-D8233C8179F1::net8.0::Parser.Tests.LexerTest.Number_StartWithDecimal&lt;/TestId&gt;&#xD;
+  &lt;/TestAncestor&gt;&#xD;
+&lt;/SessionState&gt;</s:String>
+	
+	
 	
 	
 	

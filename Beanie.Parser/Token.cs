@@ -56,6 +56,7 @@ public enum TokenType
     GreaterThanEquality, // >=
     LessThanEquality, // <=
     NotEqual, // !=
+    Bang, // !
     
     Equals, // =
     Comma, // ,

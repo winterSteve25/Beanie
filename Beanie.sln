@@ -1,10 +1,10 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parser", "Parser\Parser.csproj", "{D79F5B8E-76C8-40A5-810D-12DAD4A8BE2B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beanie.Parser", "Beanie.Parser\Beanie.Parser.csproj", "{D79F5B8E-76C8-40A5-810D-12DAD4A8BE2B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ErrFmt", "ErrFmt\ErrFmt.csproj", "{326CA1B2-E6A2-455D-AFE8-1610E699DBAE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beanie.ErrFmt", "Beanie.ErrFmt\Beanie.ErrFmt.csproj", "{326CA1B2-E6A2-455D-AFE8-1610E699DBAE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parser.Tests", "Parser.Tests\Parser.Tests.csproj", "{044D9745-3268-443C-BED5-D8233C8179F1}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Beanie.Parser.Tests", "Beanie.Parser.Tests\Beanie.Parser.Tests.csproj", "{044D9745-3268-443C-BED5-D8233C8179F1}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

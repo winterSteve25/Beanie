@@ -5,6 +5,11 @@
         <LangVersion>latestmajor</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RootNamespace>Parser</RootNamespace>
     </PropertyGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Beanie.ErrFmt\Beanie.ErrFmt.csproj" />
+    </ItemGroup>
 
 </Project>
