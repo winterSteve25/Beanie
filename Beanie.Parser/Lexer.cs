@@ -12,10 +12,10 @@ public partial class Lexer
 
     private int _i;
     private int _line;
-    
+
     private readonly string _source;
     private readonly List<IError> _errs;
-    
+
     private Lexer(string source)
     {
         _source = source;
@@ -64,7 +64,8 @@ public partial class Lexer
                    MatchesTokenName(TokenType.StackAlloc),
             'a' => MatchesTokenName(TokenType.Abstract),
             'u' => MatchesTokenName(TokenType.Union),
-            'e' => MatchesTokenName(TokenType.Enum),
+            'e' => MatchesTokenName(TokenType.Enum) ??
+                   MatchesTokenName(TokenType.Else),
             'i' => MatchesTokenName(TokenType.Interface) ??
                    MatchesTokenName(TokenType.If),
             't' => MatchesTokenName(TokenType.This) ??
@@ -94,6 +95,12 @@ public partial class Lexer
             '!' => Peek() == '='
                 ? TokenOfLen(2, TokenType.NotEqual)
                 : TokenOfLen(1, TokenType.Bang),
+            '|' => Peek() == '|'
+                ? TokenOfLen(2, TokenType.Or)
+                : TokenOfLen(1, TokenType.Pipe),
+            '&' => Peek() == '&'
+                ? TokenOfLen(2, TokenType.And)
+                : TokenOfLen(1, TokenType.Ampersand),
             ',' => TokenOfLen(1, TokenType.Comma),
             '.' => IsMatch(_i + 1, x => NumberRegex.IsMatch(x.ToString()), false)
                 ? TokenizeNumber(true)
@@ -113,6 +120,12 @@ public partial class Lexer
                 : TokenOfLen(1, TokenType.Slash),
             '%' => TokenOfLen(1, TokenType.Percent),
             '"' => TokenizeString(),
+            '@' => Peek() == '{'
+                ? TokenizeCodeBlock()
+                : TokenOfLen(1, TokenType.At),
+            '_' => Peek() == ' ' || Peek() is null
+                ? TokenOfLen(1, TokenType.Underscore)
+                : null,
             _ => null,
         };
 
@@ -255,6 +268,39 @@ public partial class Lexer
         return (new Token(_i, newI, _line, TokenType.Identifier, _source.Substring(_i, newI - _i)), newI, _line);
     }
 
+    (Token, int, int) TokenizeCodeBlock()
+    {
+        var end = _i + 2;
+        var startLine = _line;
+
+        while (true)
+        {
+            if (end >= _source.Length)
+            {
+                end = _source.Length;
+                _errs.Add(new UnexpectedEofError(_line));
+                return (new Token(_i, end, startLine, TokenType.CodeBlock, _source.Substring(_i + 2, end - _i - 2)),
+                    end, _line)!;
+            }
+
+            if (_source[end] == '\n')
+            {
+                _line++;
+            }
+
+            if (_source[end] == '}' && _source[end + 1] == '@')
+            {
+                end += 2;
+                break;
+            }
+
+            end++;
+        }
+
+        return (new Token(_i, end, startLine, TokenType.CodeBlock, _source.Substring(_i + 2, end - _i - 4)), end,
+            _line)!;
+    }
+
     (Token, int, int) SkipComment()
     {
         return (null, _source.AsSpan(_i).IndexOf('\n') + 1 + _i, _line + 1)!;
@@ -262,7 +308,7 @@ public partial class Lexer
 
     [GeneratedRegex(@"[A-Za-z_0-9]")]
     private static partial Regex IdentRegexGen();
-    
+
     [GeneratedRegex(@"[0-9.]")]
     private static partial Regex NumberRegexGen();
 }

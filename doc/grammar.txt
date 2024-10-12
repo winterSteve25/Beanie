@@ -1,0 +1,103 @@
+// Root rule for the language
+Program ::= (Declaration | FunctionDeclaration | NamespaceDeclaration)* ;
+
+// Declarations
+Declaration ::= ClassDeclaration
+              | EnumDeclaration
+              | UnionDeclaration
+              | InterfaceDeclaration
+              | TypeDeclaration
+              ;
+
+AccessModifier ::= Public | Private | Protected ;
+
+// Classes
+ClassDeclaration ::= AccessModifier Macro? (Abstract | Sealed)? Class Identifier Generic? CurlyLeft ClassBody CurlyRight ;
+ClassBody ::= (FieldDeclaration | MethodDefinition | MethodDeclaration | ConstructorDeclaration)* ;
+FieldDeclaration ::= TypeExpression Identifier (Equals Expression)? Semicolon ;
+PropertyDeclaration ::= TypeExpression Identifier CurlyLeft PropertyGetterSetter (Comma PropertyGetterSetter)? Comma? CurlyRight 
+PropertyGetterSetter ::= AccessModifier (Get | Set) (Equal Expression)?
+ConstructorDeclaration ::= AccessModifier Identifier ParenLeft ConstructorParameterList? ParenRight CurlyLeft FunctionBody CurlyRight ;
+ConstructorParamList ::= ConstructorParam (Comma ConstructorParam)* Comma? ;
+ConstructorParam ::= (This | TypeExpression) Identifier ;
+MethodDefinition ::= AccessModifier TypeExpression Identifier ParenLeft ParameterList? ParenRight CurlyLeft FunctionBody CurlyRight ;
+MethodDeclaration ::= AccessModifier TypeExpression Identifier ParenLeft ParameterList? ParenRight Semicolon ;
+
+// Enums
+EnumDeclaration ::= AccessModifier Enum Identifier ParenLeft ParameterList? ParenRight CurlyLeft EnumBody CurlyRight;
+EnumBody ::= EnumCase (Comma EnumCase)* Comma? ;
+EnumCase ::= Identifier (ParenLeft ExpressionList? ParenRight)? ;
+
+// Unions
+UnionDeclaration ::= AccessModifier Macro? Union Identifier Generic? CurlyLeft UnionBody CurlyRight ;
+UnionBody ::= UnionCase (Comma UnionCase)* Comma? ;
+UnionCase ::= Identifier ParenLeft ParameterList? ParenRight ;
+
+// Interfaces
+InterfaceDeclaration ::= AccessModifier Interface Identifier CurlyLeft InterfaceBody CurlyRight ;
+InterfaceBody ::= (MethodDeclaration | MethodDefinition | PropertyDeclaration)* ;
+
+// Types
+TypeDeclaration ::= Type Identifier Equals TypeExpression Semicolon ;
+TypeExpression ::= Identifier Generic? ;
+TypeExpressionList ::= TypeExpression (Comma TypeExpression)* Comma? ;
+Generic ::= LessThan TypeExpressionList GreaterThan
+
+// Functions
+FunctionDeclaration ::= AccessModifier TypeExpression Identifier Generic? ParenLeft ParameterList? ParenRight CurlyLeft FunctionBody CurlyRight ;
+FunctionBody ::= Statement* ;
+ParameterList ::= Parameter (Comma Parameter)* Comma? ;
+Parameter ::= TypeExpression Identifier ;
+Statement ::= VariableDeclaration | ExpressionStatement | ReturnStatement | LoopStatement ;
+VariableDeclaration ::= TypeExpression Identifier (Equals Expression)? Semicolon ;
+ExpressionStatement ::= Expression Semicolon ;
+ReturnStatement ::= Return Expression Semicolon ;
+LoopStatement ::= (For ForInitExpression? Semicolon Expression? Semicolon ForUpdateExpression? CurlyLeft Statement* CurlyRight)
+                | (While Expression CurlyLeft FunctionBody CurlyRight) ;
+
+// Expressions
+ExpressionList ::= Expression (Comma Expression)* Comma? ;
+Expression ::= LogicalOrExpression ;
+
+BlockExpression ::= CurlyLeft Statement* CurlyRight ;
+IfExpression ::= If Expression CurlyLeft Statement* CurlyRight (If Else Expression CurlyLeft Statement* CurlyRight)* (Else CurlyLeft Statement* CurlyRight)? ;
+MatchExpression ::= Match Identifier CurlyLeft MatchCaseList CurlyRight ;
+MatchCaseList ::= MatchCase (Comma MatchCase)* Comma? ;
+MatchCase ::= Case ParenLeft MatchParams? ParenRight Arrow BlockExpression ;
+MatchParams ::= MatchParam (Comma MatchParam)* Comma? ;
+MatchParam ::= Underscore | Expression ;
+
+LogicalOrExpression ::= LogicalAndExpression (Or LogicalAndExpression)* ;
+LogicalAndExpression ::= EqualityExpression (And EqualityExpression)* ;
+EqualityExpression ::= RelationalExpression (Equality RelationalExpression | NotEqual RelationalExpression)* ;
+RelationalExpression ::= AdditiveExpression (GreaterThan AdditiveExpression
+                                            | LessThan AdditiveExpression
+                                            | GreaterThanEquality AdditiveExpression
+                                            | LessThanEquality AdditiveExpression)* ;
+
+AdditiveExpression ::= MultiplicativeExpression (Plus MultiplicativeExpression | Minus MultiplicativeExpression)* ;
+MultiplicativeExpression ::= UnaryExpression (Star UnaryExpression | Slash UnaryExpression | Percent UnaryExpression)* ;
+UnaryExpression ::= (Bang | Minus | Plus)* PrimaryExpression ;
+PrimaryExpression ::= ParenLeft Expression ParenRight
+                    | BlockExpression
+                    | IfExpression
+                    | MatchExpression
+                    | FunctionCallExpression
+                    | MacroCallExpression
+                    | LiteralNumber
+                    | LiteralString
+                    | LiteralBool
+                    | Identifier
+                    | This
+                    | CodeBlock
+                    ;
+                    
+FunctionCallExpression ::= Identifier ParenLeft ExpressionList? ParenRight ;
+MacroCallExpression ::= At Identifier ParenLeft ExpressionList? ParenRight ;
+
+// Namespaces
+NamespaceDeclaration ::= Namespace Identifier Semicolon ;
+NamespaceBody ::= Namespace CurlyLeft (Declaration | FunctionDeclaration)* CurlyRight ;
+
+// Macros
+MacroDeclaration ::= Macro Identifier ParenLeft ParameterList? ParenRight CurlyLeft FunctionBody CurlyRight ;

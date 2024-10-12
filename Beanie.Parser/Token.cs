@@ -40,6 +40,7 @@ public enum TokenType
     Set, // set
     Match, // match
     If, // if
+    Else, // else
     For, // for
     While, // while
     StackAlloc, // stackalloc
@@ -49,6 +50,7 @@ public enum TokenType
     LiteralString, // ex: ""
     LiteralNumber, // ex: 1920
     LiteralBool, // ex: true
+    CodeBlock, // @{ ... }@
     
     GreaterThan, // >
     LessThan, // <
@@ -57,11 +59,17 @@ public enum TokenType
     LessThanEquality, // <=
     NotEqual, // !=
     Bang, // !
+    Or, // ||
+    And, // &&
+    
+    Pipe, // |
+    Ampersand, // &
     
     Equals, // =
     Comma, // ,
     Dot, // .
     Semicolon, // ;
+    At, // @
     ParenLeft, // (
     ParenRight, // )
     CurlyLeft, // { 
@@ -74,6 +82,7 @@ public enum TokenType
     Star, // *
     Slash, // /
     Percent, // %
+    Underscore, // _
     
     // following are not produced by lexer
     Unknown,

@@ -34,14 +34,14 @@ Use the `sealed` keyword to prevent inheritance on classes
 ```csharp
 [Formatted] // use attribute to automatically generate an implemention of IFormatted
 public sealed class BasicallyAStruct {
-    public f32 value { get, private set };
+    public f32 value { public get, private set };
     // properties like C# but its just syntactic sugar and compiler constraints
     // compiles down to normal field with no extra getter and setter
     
     // unless custom implementation is provided for getter and/or setter
     public f32 health { 
-        get, 
-        set = x => {
+        public get, 
+        public set = x => {
             this = x; // `this` here refers to the underlying field
             // maybe you want to call a function here to notify the change or something
         }
@@ -368,10 +368,10 @@ public macro Macro(Type t, i32 num) {
         return Res.Err(Compiler.Error("Number must be less than 10").At(num));
     }
     
-    return Res.Ok({
+    return Res.Ok(@{
         i32 hallo = @{num}; // @{} will run code from the macro
         Console.WriteLine(f"${@{t.Name}}: ${hallo}")
-    }); // this block will be inserted into where the macro is called
+    }@); // this special {{}} block will be inserted into where the macro is called
 }
 ```
 
