@@ -60,8 +60,7 @@ public partial class Lexer
                    MatchesTokenName(TokenType.Protected),
             'c' => MatchesTokenName(TokenType.Class),
             's' => MatchesTokenName(TokenType.Set) ??
-                   MatchesTokenName(TokenType.Sealed) ??
-                   MatchesTokenName(TokenType.StackAlloc),
+                   MatchesTokenName(TokenType.Sealed),
             'a' => MatchesTokenName(TokenType.Abstract),
             'u' => MatchesTokenName(TokenType.Union),
             'e' => MatchesTokenName(TokenType.Enum) ??
@@ -106,6 +105,7 @@ public partial class Lexer
                 ? TokenizeNumber(true)
                 : TokenOfLen(1, TokenType.Dot),
             ';' => TokenOfLen(1, TokenType.Semicolon),
+            ':' => TokenOfLen(1, TokenType.Colon),
             '(' => TokenOfLen(1, TokenType.ParenLeft),
             ')' => TokenOfLen(1, TokenType.ParenRight),
             '{' => TokenOfLen(1, TokenType.CurlyLeft),

@@ -43,7 +43,6 @@ public enum TokenType
     Else, // else
     For, // for
     While, // while
-    StackAlloc, // stackalloc
     Return, // return
     
     Identifier, // ex: hello
@@ -69,6 +68,7 @@ public enum TokenType
     Comma, // ,
     Dot, // .
     Semicolon, // ;
+    Colon, // :
     At, // @
     ParenLeft, // (
     ParenRight, // )

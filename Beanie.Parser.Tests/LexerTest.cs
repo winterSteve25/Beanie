@@ -356,6 +356,15 @@ public class LexerTest
     }
     
     [TestMethod]
+    public void Colon()
+    {
+        var (tokens, errors) = Lexer.Tokenize(":");
+        Assert.AreEqual(1, tokens.Count);
+        Assert.AreEqual(0, errors.Count);
+        Assert.AreEqual(new Token(0, 1, 0, TokenType.Colon, null), tokens[0]);
+    }
+    
+    [TestMethod]
     public void At()
     {
         var (tokens, errors) = Lexer.Tokenize("@");

@@ -12,8 +12,4 @@
       <ProjectReference Include="..\Beanie.ErrFmt\Beanie.ErrFmt.csproj" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="AST\" />
-    </ItemGroup>
-
 </Project>

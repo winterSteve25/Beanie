@@ -32,7 +32,7 @@ public class Class : IFormatted { // implements IFormatted interface
 Use the `sealed` keyword to prevent inheritance on classes
 
 ```csharp
-[Formatted] // use attribute to automatically generate an implemention of IFormatted
+@Formatted // use attribute to automatically generate an implemention of IFormatted
 public sealed class BasicallyAStruct {
     public f32 value { public get, private set };
     // properties like C# but its just syntactic sugar and compiler constraints
@@ -54,7 +54,7 @@ inheritors have to implement. `abstract` and `sealed` are mutually exclusive.
 
 ```csharp 
 public abstract class Parent { 
-    public abstract void DoSomething();
+    public void DoSomething(); // method with no body in an abstract class automatically inferred as abstract
 }
 ```
 
@@ -70,7 +70,7 @@ public union DiscriminatedUnion<T, E> {
     
     public i32 Method() {
         match this { // pattern matching
-            case Simple(t, e, 25) => {
+            Simple(t, e, 25) => {
                 Console.WriteLine(t);
                 Console.WriteLine(e);
             },
@@ -78,8 +78,8 @@ public union DiscriminatedUnion<T, E> {
         };
             
         return match this {
-            case Simple(_, _, i) => i,
-            case SimpleNamed(_, _, num) => num,
+            Simple(_, _, i) => i,
+            SimpleNamed(_, _, num) => num,
         };
     }
 }
@@ -134,10 +134,6 @@ Use namespaces to separate code
 
 ```csharp
 namespace Foo; // declares this file to be in the namespace Foo
-
-namespace Bar { // so this would be Foo.Bar
-    public static void FunctionInFooBar() {} // Foo.Bar.FunctionInFooBar
-}
 ```
 
 # Memory Management
@@ -164,7 +160,7 @@ You can't have a low level language without pointers.
 - `Owned<T>` alias of `Ptr<T>`
     - Exactly the same as `Ptr<T>`, a raw pointer
     - But it implies that you own the pointer
-    - Errors will be reported if you try to access an owned pointer after passing it to something else
+    - Warning will be reported if you try to access an owned pointer after passing it to something else
     - Warning will be reported when converting `Owned<T>` to `Ptr<T>`
 - `MemPtr` equivalent to `void*` in C/C++
     - Zero type information
@@ -172,7 +168,8 @@ You can't have a low level language without pointers.
 
 ## Ownership
 
-If you "own" an object/pointer, it means it is up to you to manage its memory.
+Beanie has a weak ownership model, meaning no ownership rule is absolutely enforced.
+If you "own" an object/pointer, it implies it is up to you to manage its memory.
 
 If a function returns an `Owned<T>` it means it is now up to you to manage the
 memory of that pointer, free it, not free it, up to the caller of the function.
@@ -190,7 +187,7 @@ Without specification, it will be allocated on the stack.
 Often you want to return something from a function but the only way to do
 that in C++ is to either copy the result from the function body,
 or making it allocate on the heap, and returning the pointer,
-or passing in a pointer to a stack allocated object at the caller.
+or passing in an already allocated pointer to the function.
 
 None of the solutions feel particularly elegant, or intuitive.
 
@@ -201,7 +198,8 @@ public class Object {
     // ...
 }
 
-public stackalloc Object Function() {
+[StackReturn]
+public Object Function() {
 }
 
 public static int Main() {
@@ -231,8 +229,7 @@ public class Object : ICopy {
         ptrToString = &str;
     }
     
-    // `This` type refers to the current type
-    public static void Copy(Ptr<This> other, Ptr<This> copied) {
+    public static void Copy(Ptr<Object> other, Ptr<Object> copied) {
         Object(copied, other->str.Copy())); // In-Place Construction
                                             // calls the constructor at the 
                                             // already existing allocation
@@ -315,43 +312,8 @@ There are a few different ways of generating code at compile time in Beanie.
 
 ## Attributes
 
-Attributes are denoted as `[Attribute]` in Beanie similar to C#
-To create one, create a sealed class that extends either `ConstructAttr` or `FunctionAttr`
-
-```csharp
-import Beanie.Compiler;
-
-public sealed class ExampleConstructAttribute : IConstructAttr {
-    public void Transform(Construct construct) {
-        match construct {
-            case Class(/*...*/) => {
-                // ... transform class object
-                // add fields
-                // add functions
-                // whatever
-            },
-            case Union(/*...*/) => {},
-            // ...
-        }
-    } 
-}
-
-public sealed class ExampleFunctionAttribute : FunctionAttr {
-    
-    private readonly i32 num;
-    
-    // constructor arguments are passed like so:
-    // [ExampleFunctionAttribute(num)]
-    public ExampleFunctionAttribute(this num) {
-    }
-    
-    public void Transform(Function func) {
-        // ... transform function
-        // inject code into body at start, end, etc
-        // add parameters
-    } 
-}
-```
+Markers in code used by the compiler or reflection API, similar to C# Attributes.
+They are denoted `[Attribute]` in Beanie
 
 ## Macros
 
@@ -361,19 +323,54 @@ that expands into more code.
 ```csharp
 import Beanie.Compiler;
 
-public macro Macro(Type t, i32 num) {
+[Macro]
+public static Res<Ast.Class, CompilerErr> TestMacro1(Ast.Class construct) {
+    Ast.Class newClass = construct.AddField(AccessModifier.Public, i32, "testField");
+    return Res.Ok(newClass);
+}
+
+@TestMacro1
+public class SomeClass {
+}
+
+// will compile into
+
+public class SomeClass {
+    public i32 testField;
+}
+```
+
+Some macros can also be used like a function
+
+```csharp
+import Beanie.Compiler;
+
+[Macro]
+public static Res<List<Token>, CompilerErr> TestMacro2(Type t, i32 num) {
     i32 num2 = num * num;
     
     if (num > 10) {
         return Res.Err(Compiler.Error("Number must be less than 10").At(num));
     }
     
-    return Res.Ok(@{
-        i32 hallo = @{num}; // @{} will run code from the macro
-        Console.WriteLine(f"${@{t.Name}}: ${hallo}")
-    }@); // this special {{}} block will be inserted into where the macro is called
+    return Res.Ok(Compiler.Parse("""
+        i32 hallo = ${num};
+        Console.WriteLine(f"${t.Name}: \${hallo}")
+    """));
+}
+
+public void Function() {
+    @TestMacro2(i32, 10); 
+    
+    // will compile into
+    {
+        i32 hallo = 10;
+        Console.WriteLine(f"i32: ${hallo}")
+    } 
 }
 ```
+
+All macros either return an element from the Ast or a List of Tokens.
 
 # Generics
 
@@ -389,18 +386,18 @@ Compile time generics are expanded into separate types with the different types 
 For example:
 
 ```csharp
-public macro class CompileTimeGeneric<Type T, i32 E> {
+public class CompileTimeGeneric<[Type T, i32 E]> {
     // ...
 }
 
 public static int Main(string[] args) {
-    CompileTimeGeneric<string> a;
-    CompileTimeGeneric<i32> b;
-    CompileTimeGeneric<i64> c;
+    CompileTimeGeneric<[string, 32]> a;
+    CompileTimeGeneric<[i32, 490]> b;
+    CompileTimeGeneric<[i32, 12]> c;
 }
 ```
 
-It will compile into 3 separate classes with `T` replaced by `string`, `i32`, and `i64` each.
+This will compile to 3 versions of the class each with T and E replaced their variants
 
 ## Runtime
 
