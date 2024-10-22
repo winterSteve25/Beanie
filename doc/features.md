@@ -29,12 +29,12 @@ public class Class : IFormatted { // implements IFormatted interface
 }
 ```
 
-Use the `sealed` keyword to prevent inheritance on classes
+Use the `Sealed` attribute to prevent inheritance on classes
 
 ```csharp
 [@Formatted, Sealed] // use macro to automatically generate an implemention of IFormatted, and mark the class as sealed. ie no class can extend this class
 public class BasicallyAStruct {
-    public f32 value { public get, private set };
+    public f32 value { public get, private set }
     // properties like C# but its just syntactic sugar and compiler constraints
     // compiles down to normal field with no extra getter and setter
     
@@ -45,7 +45,7 @@ public class BasicallyAStruct {
             this = x; // `this` here refers to the underlying field
             // maybe you want to call a function here to notify the change or something
         }
-    };
+    }
 }
 ```
 
@@ -313,15 +313,13 @@ There are a few different ways of generating code at compile time in Beanie.
 
 ## Attributes
 
-Markers in code used by the compiler or reflection API, similar to C# Attributes.
-They are denoted `[Attribute]` in Beanie
-
-They are NOT the same as Macros that are always denoted using `@`.
+Attributes in Beanie are markers that provide metadata to the compiler or reflection API, 
+relevant at runtime. They do not modify code behavior directly. Denoted with `[Attribute]`.
 
 ## Macros
 
-Similar to rust macros, they are functions that are run during compile time
-that expands into more code.
+Macros are compile-time functions that transform code, similar to Rust macros. 
+Denoted with `[@Macro]` when using on class, interface, union, enum, etc. Similar to rust's `#[derive()]` macro
 
 ```csharp
 import Beanie.Compiler;
@@ -343,12 +341,12 @@ public class SomeClass {
 }
 ```
 
-Some macros can also be used like a function
+Some macros can also be used like a function, similar to rust's `macro!()`
 
 ```csharp
 import Beanie.Compiler;
 
-[Macro]
+[Macro] // similar to rust's `macro_rules! { }`
 public static Res<List<Token>, CompilerErr> TestMacro2(Type t, i32 num) {
     i32 num2 = num * num;
     
@@ -356,10 +354,10 @@ public static Res<List<Token>, CompilerErr> TestMacro2(Type t, i32 num) {
         return Res.Err(Compiler.Error("Number must be less than 10").At(num));
     }
     
-    return Res.Ok(Compiler.Parse("""
-        i32 hallo = ${num};
-        Console.WriteLine(f"${t.Name}: \${hallo}")
-    """));
+    return Res.Ok(Compiler.Parse(@{
+        i32 hallo = @{num};
+        Console.WriteLine(f"${@{t.Name}}: ${hallo}")
+    }@));
 }
 
 public void Function() {

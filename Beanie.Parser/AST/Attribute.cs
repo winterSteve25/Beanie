@@ -9,11 +9,18 @@ public record Attribute(
 ) : IAstElement
 {
     public record AttributeBody(
+        Token? At,
         Identifier Name,
         Token? ParenL,
         Token? ParenR,
         Delimited<IExpression>? Expressions,
         int Start,
         int End
-    ) : IAstElement;
+    ) : IAstElement
+    {
+        public bool IsMacro()
+        {
+            return At is not null;
+        }
+    }
 }

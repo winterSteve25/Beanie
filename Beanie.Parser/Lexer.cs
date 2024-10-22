@@ -54,14 +54,12 @@ public partial class Lexer
         (Token?, int, int)? token = c switch
         {
             '\n' => (new Token(_i, _i + 1, _line, TokenType.NewLine, null), _i + 1, _line + 1),
-            '\r' => (null, _i + 1, line: _line)!,
+            '\r' => (null, _i + 1, _line)!,
             'p' => MatchesTokenName(TokenType.Public) ??
                    MatchesTokenName(TokenType.Private) ??
                    MatchesTokenName(TokenType.Protected),
             'c' => MatchesTokenName(TokenType.Class),
-            's' => MatchesTokenName(TokenType.Set) ??
-                   MatchesTokenName(TokenType.Sealed),
-            'a' => MatchesTokenName(TokenType.Abstract),
+            's' => MatchesTokenName(TokenType.Set),
             'u' => MatchesTokenName(TokenType.Union),
             'e' => MatchesTokenName(TokenType.Enum) ??
                    MatchesTokenName(TokenType.Else),
@@ -70,16 +68,17 @@ public partial class Lexer
             't' => MatchesTokenName(TokenType.This) ??
                    MatchesTokenName(TokenType.Type) ??
                    MatchesWord("true", TokenType.LiteralBool, true),
-            'n' => MatchesTokenName(TokenType.Namespace),
-            'm' => MatchesTokenName(TokenType.Match) ??
-                   MatchesTokenName(TokenType.Macro),
+            'n' => MatchesTokenName(TokenType.New) ??
+                   MatchesTokenName(TokenType.Namespace),
+            'm' => MatchesTokenName(TokenType.Match),
             'g' => MatchesTokenName(TokenType.Get),
             'f' => MatchesTokenName(TokenType.For) ??
                    MatchesWord("false", TokenType.LiteralBool, false),
             'w' => MatchesTokenName(TokenType.While),
             'r' => MatchesTokenName(TokenType.Return),
-            ' ' => (null, _i + 1, line: _line)!,
-            '\t' => (null, _i + 1, line: _line)!,
+            'd' => MatchesTokenName(TokenType.Defer),
+            ' ' => (null, _i + 1, _line)!,
+            '\t' => (null, _i + 1, _line)!,
             '>' => Peek() == '='
                 ? TokenOfLen(2, TokenType.GreaterThanEquality)
                 : TokenOfLen(1, TokenType.GreaterThan),

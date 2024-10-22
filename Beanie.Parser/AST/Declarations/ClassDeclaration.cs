@@ -3,7 +3,6 @@ namespace Parser.AST.Declarations;
 public record ClassDeclaration(
     List<Attribute> Attributes,
     AccessModifier AccessModifier,
-    AbstractOrSealed? AbstractOrSealed,
     Token ClassToken,
     Token Identifier,
     IGeneric? Generic,

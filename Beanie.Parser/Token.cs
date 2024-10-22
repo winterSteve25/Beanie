@@ -26,14 +26,14 @@ public enum TokenType
     Protected, //protected
     
     Class, // class
-    Sealed, // sealed
-    Abstract, // abstract
     Union, // union
     Enum, // enum
     Interface, // interface
     Type, // type
     Namespace, // namespace
-    Macro, // macro
+    
+    Defer, // defer
+    New, // new
     
     This, // this
     Get, // get
