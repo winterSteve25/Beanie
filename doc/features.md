@@ -32,8 +32,8 @@ public class Class : IFormatted { // implements IFormatted interface
 Use the `sealed` keyword to prevent inheritance on classes
 
 ```csharp
-@Formatted() // use macro to automatically generate an implemention of IFormatted
-public sealed class BasicallyAStruct {
+[@Formatted, Sealed] // use macro to automatically generate an implemention of IFormatted, and mark the class as sealed. ie no class can extend this class
+public class BasicallyAStruct {
     public f32 value { public get, private set };
     // properties like C# but its just syntactic sugar and compiler constraints
     // compiles down to normal field with no extra getter and setter
@@ -49,11 +49,12 @@ public sealed class BasicallyAStruct {
 }
 ```
 
-Use the `abstract` keyword to allow functions with no implementations that
+Use the `abstract` attribute to allow functions with no implementations that
 inheritors have to implement. `abstract` and `sealed` are mutually exclusive.
 
-```csharp 
-public abstract class Parent { 
+```csharp
+[Abstract]
+public class Parent { 
     public void DoSomething(); // method with no body in an abstract class automatically inferred as abstract
 }
 ```
@@ -198,7 +199,7 @@ public class Object {
     // ...
 }
 
-@StackReturn()
+[@StackReturn]
 public Object Function() {
 }
 
@@ -315,6 +316,8 @@ There are a few different ways of generating code at compile time in Beanie.
 Markers in code used by the compiler or reflection API, similar to C# Attributes.
 They are denoted `[Attribute]` in Beanie
 
+They are NOT the same as Macros that are always denoted using `@`.
+
 ## Macros
 
 Similar to rust macros, they are functions that are run during compile time
@@ -329,7 +332,7 @@ public static Res<Ast.Class, CompilerErr> TestMacro1(Ast.Class construct) {
     return Res.Ok(newClass);
 }
 
-@TestMacro1()
+[@TestMacro1]
 public class SomeClass {
 }
 
