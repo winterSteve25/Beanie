@@ -32,7 +32,7 @@ public class Class : IFormatted { // implements IFormatted interface
 Use the `sealed` keyword to prevent inheritance on classes
 
 ```csharp
-@Formatted // use attribute to automatically generate an implemention of IFormatted
+@Formatted() // use macro to automatically generate an implemention of IFormatted
 public sealed class BasicallyAStruct {
     public f32 value { public get, private set };
     // properties like C# but its just syntactic sugar and compiler constraints
@@ -198,7 +198,7 @@ public class Object {
     // ...
 }
 
-[StackReturn]
+@StackReturn()
 public Object Function() {
 }
 
@@ -329,7 +329,7 @@ public static Res<Ast.Class, CompilerErr> TestMacro1(Ast.Class construct) {
     return Res.Ok(newClass);
 }
 
-@TestMacro1
+@TestMacro1()
 public class SomeClass {
 }
 
@@ -420,5 +420,5 @@ public static int Main(string[] args) {
 When compiled, `T` will be replaced by `object` making the 3 different types the same.
 However, type checking occur during compile time to make sure everything is correct.
 
-With Runtime Generics you can use types like `List<? extends SomeInterface>` but this
+With Runtime Generics you can use types like `List<? : SomeInterface>` but this
 will not be possible with compile time generics.
