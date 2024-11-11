@@ -4,6 +4,7 @@ using Parser.AST;
 using Parser.AST.Expressions;
 using Parser.AST.Generics;
 using Parser.AST.Statements;
+using Parser.Errors;
 
 namespace Parser.Tests;
 
@@ -185,7 +186,7 @@ public class ParserTest
             Some(x) => { x + 1; },
             None() => { 0; },
             Other(2, _, y) => {
-                I32 hello = y;
+                I32 hello = y n;
                 return hello + 42;
             },
             5 => { -1; },
@@ -414,11 +415,14 @@ public class ParserTest
     }
 
     [TestMethod]
-    public void ParseExpression()
+    public void ParseStatement_WithErr()
     {
         var (tokens, errs) = Lexer.Tokenize("2 4;");
         var p = new Parser(tokens, errs);
         var stmts = p.ParseStatements();
-        int a = 0;
+        
+        Assert.AreEqual(0, stmts.Count);
+        Assert.AreEqual(1, errs.Count);
+        Assert.IsInstanceOfType<UnexpectedTokenError>(errs[0]);
     }
 }

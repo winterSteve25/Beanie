@@ -964,13 +964,24 @@ public class Parser
 
     public List<IStatement> ParseStatements()
     {
+        if (Check(TokenType.CurlyRight))
+        {
+            return [];
+        }
+        
         var result = new List<IStatement>();
-
-        var tri = TryParse(ParseStatement);
+        var tri = TryParse(ParseStatement, true);
+        
         while (tri.HasValue())
         {
             result.Add(tri.Unwrap()!);
-            tri = TryParse(ParseStatement);
+
+            if (Check(TokenType.CurlyRight))
+            {
+                break;
+            }
+            
+            tri = TryParse(ParseStatement, true);
         }
 
         return result;
