@@ -126,7 +126,7 @@ Create aliases for types using `type` keyword
 
 ```csharp
 type StrPtr = Ptr<string>;
-type SharedPtr<T> = ShrdPtr<T>;
+type SharedPtr<T> = Rc<T>;
 ```
 
 ## Namespaces

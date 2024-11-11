@@ -4,13 +4,13 @@ public record IfExpr(
     Token IfToken,
     IExpression Condition,
     BlockExpr ThenBlock,
-    List<IfExpr.ElseIfClause> ElseIfClauses,
-    IfExpr.ElseClause? Else,
+    List<IfExpr.ElseIf> ElseIfClauses,
+    IfExpr.Else? ElseClause,
     int Start,
     int End
 ) : IExpression
 {
-    public record ElseIfClause(
+    public record ElseIf(
         Token ElseToken,
         Token IfToken,
         IExpression Condition,
@@ -19,7 +19,7 @@ public record IfExpr(
         int End
     ) : IAstElement;
 
-    public record ElseClause(
+    public record Else(
         Token ElseToken,
         BlockExpr ElseBlock,
         int Start,

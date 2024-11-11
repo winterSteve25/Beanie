@@ -13,7 +13,7 @@ public class LexerTest
 {
     [TestMethod]
     public void Number_StartWithDecimal()
-    {
+    {        
         var (tokens, errors) = Lexer.Tokenize(".12920");
         Assert.AreEqual(1, tokens.Count);
         Assert.AreEqual(0, errors.Count);
@@ -196,7 +196,7 @@ public class LexerTest
         Assert.AreEqual(1, tokens.Count);
         Assert.AreEqual(1, errors.Count);
         Assert.AreEqual(new Token(0, 21, 0, TokenType.LiteralString, "unterminated string"), tokens[0]);
-        Assert.AreEqual(new UnexpectedEofError(0), errors[0]);
+        Assert.AreEqual(new UnexpectedEofError(), errors[0]);
     }
 
     [TestMethod]
@@ -217,7 +217,7 @@ public class LexerTest
         Assert.AreEqual(1, tokens.Count);
         Assert.AreEqual(1, errors.Count);
         Assert.AreEqual(new Token(0, 13, 0, TokenType.CodeBlock, " hallo = 10"), tokens[0]);
-        Assert.AreEqual(new UnexpectedEofError(0), errors[0]);
+        Assert.AreEqual(new UnexpectedEofError(), errors[0]);
     }
 
     [TestMethod]
@@ -380,6 +380,16 @@ public class LexerTest
         Assert.AreEqual(1, tokens.Count);
         Assert.AreEqual(0, errors.Count);
         Assert.AreEqual(new Token(0, 1, 0, TokenType.Underscore, null), tokens[0]);
+    }
+
+    [TestMethod]
+    public void UnderscoreNonIdent()
+    {
+        var (tokens, errors) = Lexer.Tokenize("_,");
+        Assert.AreEqual(2, tokens.Count);
+        Assert.AreEqual(0, errors.Count);
+        Assert.AreEqual(new Token(0, 1, 0, TokenType.Underscore, null), tokens[0]);
+        Assert.AreEqual(new Token(1, 2, 0, TokenType.Comma, null), tokens[1]);
     }
 
     [TestMethod]

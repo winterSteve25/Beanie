@@ -42,9 +42,9 @@ interface_body ::= (method_declaration | method_definition | property_declaratio
 
 // Types
 type_declaration ::= attribute* Type Identifier Equals type_expression Semicolon ;
-type_expression ::= Identifier (generic | compile_generic)? ;
+type_expression ::= nested_ident (generic | compile_generic)? ;
 type_expr_list ::= type_expression (Comma type_expression)* Comma? ;
-generic ::= LessThan type_expr_list GreaterThan ;
+generic ::= LessThan (Identifier (Comma Identifier)*)? GreaterThan ;
 compile_generic ::= LessThan SquareLeft param_list SquareRight GreaterThan ;
 
 // Functions
@@ -64,7 +64,7 @@ block_expr ::= CurlyLeft statement* CurlyRight ;
 if_expr ::= If expression CurlyLeft statement* CurlyRight (If Else expression CurlyLeft statement* CurlyRight)* (Else CurlyLeft statement* CurlyRight)? ;
 match_expr ::= Match Identifier CurlyLeft MatchCaseList CurlyRight ;
 MatchCaseList ::= MatchCase (Comma MatchCase)* Comma? ;
-MatchCase ::= Case ParenLeft MatchParams? ParenRight Arrow block_expr ;
+MatchCase ::= ParenLeft MatchParams? ParenRight Arrow block_expr ;
 MatchParams ::= MatchParam (Comma MatchParam)* Comma? ;
 MatchParam ::= Underscore | expression ;
 

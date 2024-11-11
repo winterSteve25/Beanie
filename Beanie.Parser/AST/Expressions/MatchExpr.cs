@@ -2,16 +2,16 @@ namespace Parser.AST.Expressions;
 
 public record MatchExpr(
     Token MatchToken,
-    Token Identifier,
+    IExpression Matchee,
     Token CurlyLeft,
-    Delimited<MatchExpr.MatchCase> CaseList,
+    Delimited<MatchExpr.IMatchCase> CaseList,
     Token CurlyRight,
     int Start,
     int End
 ) : IExpression
 {
-    public record MatchCase(
-        Token CaseToken,
+    public record UnionCase(
+        Identifier Case,
         Token ParenLeft,
         Delimited<IMatchParam> Params,
         Token ParenRight,
@@ -19,5 +19,27 @@ public record MatchExpr(
         BlockExpr Body,
         int Start,
         int End
-    ) : IAstElement;
+    ) : IMatchCase;
+
+    public record AnyCase(
+        Token Underscore,
+        Token ArrowToken,
+        BlockExpr Body,
+        int Start,
+        int End
+    ) : IMatchCase;
+
+    public record ExpressionCase(
+        IExpression Expression,
+        Token ArrowToken,
+        BlockExpr Body,
+        int Start,
+        int End
+    ) : IMatchCase;
+
+    public interface IMatchCase : IAstElement
+    {
+        Token ArrowToken { get; }
+        BlockExpr Body { get; }
+    }
 }

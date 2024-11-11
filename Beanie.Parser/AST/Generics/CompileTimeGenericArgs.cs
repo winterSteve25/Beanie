@@ -1,11 +1,11 @@
 namespace Parser.AST.Generics;
 
-public record CompileTimeGeneric(
+public record CompileTimeGenericArgs(
     Token AngledL,
     Token AngledR,
     Token SquareL,
     Token SquareR,
-    Delimited<Param>? Params,
+    Delimited<IExpression>? Args,
     int Start,
     int End
 ) : IGeneric;

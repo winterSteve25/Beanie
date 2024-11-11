@@ -1,7 +1,7 @@
 namespace Parser.AST.Expressions;
 
-public record CodeBlockExpr(
-    Token CodeBlockToken,
-    int Start,
-    int End
-) : IExpression;
+public record CodeBlockExpr(Token CodeBlockToken) : IExpression
+{
+    public int Start => CodeBlockToken.Start;
+    public int End => CodeBlockToken.End;
+}

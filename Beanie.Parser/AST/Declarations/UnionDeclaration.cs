@@ -25,7 +25,7 @@ public record UnionDeclaration(
     public record UnionCase(
         Token Identifier,
         Token ParenLeft,
-        Delimited<Param> ParamList,
+        Delimited<Param>? ParamList,
         Token ParenRight,
         Token Semicolon,
         int Start,

@@ -122,7 +122,7 @@ public partial class Lexer
             '@' => Peek() == '{'
                 ? TokenizeCodeBlock()
                 : TokenOfLen(1, TokenType.At),
-            '_' => Peek() == ' ' || Peek() is null
+            '_' => Peek() is null || !IdentRegex.IsMatch(Peek()!.Value.ToString())
                 ? TokenOfLen(1, TokenType.Underscore)
                 : null,
             _ => null,
@@ -173,7 +173,7 @@ public partial class Lexer
         if (i >= _source.Length)
         {
             if (errIfEnd)
-                _errs.Add(new UnexpectedEofError(_line));
+                _errs.Add(new UnexpectedEofError());
             return false;
         }
 
@@ -277,7 +277,7 @@ public partial class Lexer
             if (end >= _source.Length)
             {
                 end = _source.Length;
-                _errs.Add(new UnexpectedEofError(_line));
+                _errs.Add(new UnexpectedEofError());
                 return (new Token(_i, end, startLine, TokenType.CodeBlock, _source.Substring(_i + 2, end - _i - 2)),
                     end, _line)!;
             }

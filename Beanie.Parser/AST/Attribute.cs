@@ -3,12 +3,12 @@ namespace Parser.AST;
 public record Attribute(
     Token SqrL,
     Token SqrR,
-    Delimited<Attribute.AttributeBody> Body,
+    Delimited<Attribute.Body>? ABody,
     int Start,
     int End
 ) : IAstElement
 {
-    public record AttributeBody(
+    public record Body(
         Token? At,
         Identifier Name,
         Token? ParenL,
