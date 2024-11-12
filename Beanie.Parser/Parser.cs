@@ -38,8 +38,8 @@ public class Parser
         if (namespaceToken is null)
             return ParseResult<NamespaceUnit>.WrongConstruct();
 
-        var identifier = ParseIdentifier();
-        if (identifier.Failed)
+        var identifier = Consume(TokenType.Identifier);
+        if (identifier is null)
             return ParseResult<NamespaceUnit>.Error();
 
         Consume(TokenType.Semicolon);
@@ -61,7 +61,7 @@ public class Parser
 
         return ParseResult<NamespaceUnit>.Successful(new NamespaceUnit(
             namespaceToken,
-            identifier.Value,
+            new Identifier(identifier),
             declarations,
             namespaceToken.Start,
             Previous().End
@@ -130,13 +130,14 @@ public class Parser
 
     public ParseResult<TypeExpr> ParseTypeExpression()
     {
-        var ident = ParseIdentifier();
+        var ident = ParseAccessor();
         if (ident.Failed)
             return ParseResult<TypeExpr>.WrongConstruct();
 
-        var generic = ParseGeneric(false);
-        var identifier = ident.Value!;
+        var generic = TryParse(() => ParseGeneric(false));
+        if (!generic.IsDifferentConstruct) return ParseResult<TypeExpr>.Error();
 
+        var identifier = ident.Value!;
         return ParseResult<TypeExpr>.Successful(new TypeExpr(
             identifier,
             generic.Value,
@@ -297,7 +298,7 @@ public class Parser
             at = ConsumeAny();
         }
 
-        var ident = ParseIdentifier();
+        var ident = ParseAccessor();
         if (!ident.Success) return ParseResult<Attribute.Body>.WrongConstruct();
         var identifier = ident.Value!;
 
@@ -330,34 +331,34 @@ public class Parser
         ));
     }
 
-    public ParseResult<Identifier> ParseIdentifier()
+    public ParseResult<AccessExpr> ParseAccessor()
     {
-        var initial = ParseSimpleIdentifier();
-        if (!initial.Success) return ParseResult<Identifier>.WrongConstruct();
+        var initial = ParseSimpleAccessor();
+        if (!initial.Success) return ParseResult<AccessExpr>.WrongConstruct();
 
         var identifier = initial.Value!;
         var start = identifier.Start;
 
-        return ParseIdentifierLeft(identifier, start);
+        return ParseAccessorLeft(identifier, start);
     }
 
-    private ParseResult<Identifier> ParseIdentifierLeft(Identifier right, int start)
+    private ParseResult<AccessExpr> ParseAccessorLeft(AccessExpr right, int start)
     {
         if (!Check(TokenType.Dot))
         {
-            return ParseResult<Identifier>.Successful(right);
+            return ParseResult<AccessExpr>.Successful(right);
         }
 
         var dot = ConsumeAny();
-        var nextRight = TryParse(ParseSimpleIdentifier);
+        var nextRight = TryParse(ParseSimpleAccessor);
         if (nextRight.IsDifferentConstruct)
         {
             _current--; // unconsume the dot
-            return ParseResult<Identifier>.Successful(right);
+            return ParseResult<AccessExpr>.Successful(right);
         }
 
         var identifier = nextRight.Value!;
-        var newNode = new Identifier(
+        var newNode = new AccessExpr(
             right,
             dot,
             identifier.Right,
@@ -365,23 +366,48 @@ public class Parser
             identifier.End
         );
 
-        return ParseIdentifierLeft(newNode, start);
+        return ParseAccessorLeft(newNode, start);
     }
 
-    private ParseResult<Identifier> ParseSimpleIdentifier()
+    private ParseResult<AccessExpr> ParseSimpleAccessor()
     {
-        if (!Check(TokenType.Identifier))
+        if (Check(TokenType.At))
         {
-            return ParseResult<Identifier>.WrongConstruct();
+            var macro = ParseMacroCall();
+            if (macro.Failed) return ParseResult<AccessExpr>.Error();
+
+            return ParseResult<AccessExpr>.Successful(new AccessExpr(
+                null,
+                null,
+                macro.Value!,
+                macro.Value!.Start,
+                macro.Value!.End
+            ));
         }
 
-        var token = ConsumeAny()!;
-        return ParseResult<Identifier>.Successful(new Identifier(
+        if (!Check(TokenType.Identifier)) return ParseResult<AccessExpr>.WrongConstruct();
+        
+        var func = TryParse(ParseFunctionCall);
+        if (func.Failed && !func.IsDifferentConstruct) return ParseResult<AccessExpr>.Error();
+        if (func.Success)
+        {
+            return ParseResult<AccessExpr>.Successful(new AccessExpr(
+                null,
+                null,
+                func.Value!,
+                func.Value!.Start,
+                func.Value!.End
+            ));
+        }
+
+        var ident = ConsumeAny()!;
+            
+        return ParseResult<AccessExpr>.Successful(new AccessExpr(
             null,
             null,
-            token,
-            token.Start,
-            token.End
+            new Identifier(ident),
+            ident.Start,
+            ident.End
         ));
     }
 
@@ -521,7 +547,7 @@ public class Parser
         var left = ParseUnary();
         if (left.Failed) return ParseResult<IExpression>.Inherit(left);
 
-        while (Check(TokenType.Star) || Check(TokenType.Slash) || Check(TokenType.Percent))
+        while (Check(TokenType.Star) || Check(TokenType.Slash) || Check(TokenType.Percent) || Check(TokenType.Equals))
         {
             var op = ConsumeAny()!;
             var right = ParseUnary();
@@ -544,7 +570,7 @@ public class Parser
     private ParseResult<IExpression> ParseUnary()
     {
         if (!Check(TokenType.Bang) && !Check(TokenType.Minus) && !Check(TokenType.Plus)) return ParsePrimaryExpr();
-        
+
         var op = ConsumeAny()!;
         var expr = ParseUnary();
         if (expr.Failed) return ParseResult<IExpression>.Error();
@@ -628,53 +654,16 @@ public class Parser
             return ParseResult<IExpression>.Successful(new ThisExpr(thisToken));
         }
 
-        if (Check(TokenType.At))
-        {
-            return ParseMacroCall();
-        }
-
         if (Check(TokenType.CodeBlock))
         {
             return ParseResult<IExpression>.Successful(new CodeBlockExpr(ConsumeAny()!));
         }
 
-        var ident = ParseIdentifier();
-        if (ident.Failed) return ParseResult<IExpression>.WrongConstruct();
-        var identifier = ident.Value!;
+        var accessor = TryParse(ParseAccessor);
+        if (accessor.Success) return accessor.Cast<IExpression>();
+        if (!accessor.IsDifferentConstruct) return ParseResult<IExpression>.Error();
 
-        if (Check(TokenType.ParenLeft))
-        {
-            var left = ConsumeAny()!;
-            var args = ParseDelimited(ParseExpression);
-            var right = Consume(TokenType.ParenRight);
-            if (right is null) return ParseResult<IExpression>.Error();
-
-            return ParseResult<IExpression>.Successful(new FunctionCallExpr(
-                identifier,
-                left,
-                args.Value,
-                right,
-                identifier.Start,
-                right.End
-            ));
-        }
-
-        if (Check(TokenType.Equals))
-        {
-            var eql = ConsumeAny()!;
-            var right = ParseExpression();
-            if (right.Failed) return ParseResult<IExpression>.Error();
-
-            return ParseResult<IExpression>.Successful(new AssignmentExpr(
-                identifier,
-                eql,
-                right.Value!,
-                identifier.Start,
-                right.Value!.End
-            ));
-        }
-
-        return ParseResult<IExpression>.Successful(identifier);
+        return ParseResult<IExpression>.WrongConstruct();
     }
 
     private ParseResult<IExpression> ParseIfExpr()
@@ -809,7 +798,7 @@ public class Parser
 
     private ParseResult<MatchExpr.IMatchCase> ParseUnionCase()
     {
-        var ident = ParseIdentifier();
+        var ident = ParseAccessor();
         if (ident.Failed) return ParseResult<MatchExpr.IMatchCase>.Inherit(ident);
 
         var leftParen = Consume(TokenType.ParenLeft);
@@ -926,8 +915,8 @@ public class Parser
     {
         var at = ConsumeAny()!;
 
-        var ident = ParseIdentifier();
-        if (ident.Failed) return ParseResult<IExpression>.Error();
+        var ident = Consume(TokenType.Identifier);
+        if (ident is null) return ParseResult<IExpression>.Error();
 
         var leftParen = Consume(TokenType.ParenLeft);
         if (leftParen is null) return ParseResult<IExpression>.Error();
@@ -937,16 +926,44 @@ public class Parser
         var rightParen = Consume(TokenType.ParenRight);
         if (rightParen is null) return ParseResult<IExpression>.Error();
 
-        var identifier = ident.Value!;
         return ParseResult<IExpression>.Successful(new MacroCallExpr(
             at,
-            identifier,
+            new Identifier(ident),
             leftParen,
             args.Value,
             rightParen,
             at.Start,
             rightParen.End
         ));
+    }
+
+    private ParseResult<IExpression> ParseFunctionCall()
+    {
+        var ident = Consume(TokenType.Identifier);
+        if (ident is null) return ParseResult<IExpression>.WrongConstruct();
+
+        var generic = TryParse(() => ParseGeneric(false));
+        if (!generic.IsDifferentConstruct) return ParseResult<IExpression>.Error();
+
+        if (Check(TokenType.ParenLeft))
+        {
+            var left = ConsumeAny()!;
+            var args = ParseDelimited(ParseExpression);
+            var right = Consume(TokenType.ParenRight);
+            if (right is null) return ParseResult<IExpression>.Error();
+
+            return ParseResult<IExpression>.Successful(new FunctionCallExpr(
+                new Identifier(ident),
+                generic.Value,
+                left,
+                args.Value,
+                right,
+                ident.Start,
+                right.End
+            ));
+        }
+
+        return ParseResult<IExpression>.WrongConstruct();
     }
 
     public List<IStatement> ParseStatements()
@@ -1140,7 +1157,7 @@ public class Parser
             {
                 return ParseResult<Delimited<T>.Next>.Error();
             }
-            
+
             // unconsume commaNext
             _current--;
         }

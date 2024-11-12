@@ -11,7 +11,7 @@ public record MatchExpr(
 ) : IExpression
 {
     public record UnionCase(
-        Identifier Case,
+        AccessExpr Case,
         Token ParenLeft,
         Delimited<IMatchParam> Params,
         Token ParenRight,
