@@ -26,70 +26,66 @@ public class Parser
     private Token Previous() => Tokens[_current - 1];
     private bool IsAtEnd() => _current >= Tokens.Count;
 
-    public static NamespaceUnit Parse(List<Token> tokens, List<IError> errs)
+    public static ParseResult<NamespaceUnit> Parse(List<Token> tokens, List<IError> errs)
     {
         var p = new Parser(tokens, errs);
-        if (p.Check(TokenType.Namespace))
-        {
-            return p.ParseNamespace();
-        }
-
-        var decls = new List<IDeclaration>();
-
-        while (!p.IsAtEnd())
-        {
-            var decl = p.ParseDeclaration();
-            if (decl.IsEmpty()) continue;
-            decls.Add(decl.Unwrap()!);
-        }
-
-        return new NamespaceUnit(null, null, decls, 0, p.Previous().End);
+        return p.ParseNamespace();
     }
 
-    private NamespaceUnit ParseNamespace()
+    private ParseResult<NamespaceUnit> ParseNamespace()
     {
-        var namespaceToken = ConsumeAny()!;
-        var identifier = ParseIdentifier();
-        if (identifier.IsEmpty())
-            Consume(TokenType.Semicolon);
+        var namespaceToken = Consume(TokenType.Namespace);
+        if (namespaceToken is null)
+            return ParseResult<NamespaceUnit>.WrongConstruct();
 
+        var identifier = ParseIdentifier();
+        if (identifier.Failed)
+            return ParseResult<NamespaceUnit>.Error();
+
+        Consume(TokenType.Semicolon);
         var declarations = new List<IDeclaration>();
         while (!IsAtEnd())
         {
             var decl = ParseDeclaration();
-            if (decl.IsEmpty()) continue;
-            declarations.Add(decl.Unwrap()!);
+            if (!decl.Success)
+            {
+                SkipToNext(
+                    TokenType.Namespace, TokenType.SquareLeft,
+                    TokenType.Public, TokenType.Private,
+                    TokenType.Protected);
+                continue;
+            }
+
+            declarations.Add(decl.Value!);
         }
 
-        return new NamespaceUnit(
+        return ParseResult<NamespaceUnit>.Successful(new NamespaceUnit(
             namespaceToken,
-            identifier.Unwrap(),
+            identifier.Value,
             declarations,
             namespaceToken.Start,
             Previous().End
-        );
+        ));
     }
 
-    public Opt<IDeclaration> ParseDeclaration()
+    private ParseResult<IDeclaration> ParseDeclaration()
     {
-        if (Check(TokenType.Namespace)) return Opt<IDeclaration>.Some(ParseNamespace());
+        if (Check(TokenType.Namespace)) return ParseNamespace().Cast<IDeclaration>();
 
         var attributes = ParseAttributes();
         var accessModifier = ParseAccessModifier();
-        if (accessModifier.IsEmpty()) return Opt<IDeclaration>.None();
+        if (!accessModifier.Success) ParseResult<IDeclaration>.WrongConstruct();
 
-        if (Check(TokenType.Type)) return ParseTypeDeclaration(attributes, accessModifier.Unwrap()!);
+        if (Check(TokenType.Type)) return ParseTypeDeclaration(attributes, accessModifier.Value!);
         // if (Check(TokenType.Class)) return ParseClassDeclaration(attributes, accessModifier);
         // if (Match(TokenType.Enum)) return ParseEnumDeclaration(attributes, accessModifier);
         // if (Match(TokenType.Union)) return ParseUnionDeclaration(attributes, accessModifier);
         // if (Match(TokenType.Interface)) return ParseInterfaceDeclaration(attributes, accessModifier);
 
         var next = ConsumeAny();
-
         if (next is null)
         {
-            // error already handled
-            return Opt<IDeclaration>.None();
+            return ParseResult<IDeclaration>.Error();
         }
 
         Errs.Add(new UnexpectedTokenError(
@@ -101,58 +97,58 @@ public class Parser
             TokenType.Interface,
             TokenType.Type));
 
-        return Opt<IDeclaration>.None();
+        return ParseResult<IDeclaration>.Error();
+
+        ParseResult<IDeclaration> ParseTypeDeclaration(List<Attribute> attributes, AccessModifier accessModifier)
+        {
+            var typeToken = ConsumeAny()!;
+            var identToken = Consume(TokenType.Identifier);
+            if (identToken is null) return ParseResult<IDeclaration>.Error();
+
+            var eql = Consume(TokenType.Equals);
+            if (eql is null) return ParseResult<IDeclaration>.Error();
+
+            var typExpr = ParseTypeExpression();
+            if (!typExpr.Success) return ParseResult<IDeclaration>.Error();
+
+            var semiColon = Consume(TokenType.Semicolon);
+            if (semiColon is null) return ParseResult<IDeclaration>.Error();
+
+            return ParseResult<IDeclaration>.Successful(new TypeDeclaration(
+                attributes,
+                accessModifier,
+                typeToken,
+                identToken,
+                eql,
+                typExpr.Value!,
+                semiColon,
+                attributes.Count == 0 ? typeToken.Start : attributes[0].Start,
+                semiColon.End
+            ));
+        }
     }
 
-    public Opt<IDeclaration> ParseTypeDeclaration(List<Attribute> attributes, AccessModifier accessModifier)
-    {
-        var typeToken = ConsumeAny()!;
-        var identToken = Consume(TokenType.Identifier);
-        if (identToken is null) return Opt<IDeclaration>.None();
-
-        var eql = Consume(TokenType.Equals);
-        if (eql is null) return Opt<IDeclaration>.None();
-
-        var typExpr = ParseTypeExpression();
-        if (typExpr.IsEmpty()) return Opt<IDeclaration>.None();
-
-        var semiColon = Consume(TokenType.Semicolon);
-        if (semiColon is null) return Opt<IDeclaration>.None();
-
-        return Opt<IDeclaration>.Some(new TypeDeclaration(
-            attributes,
-            accessModifier,
-            typeToken,
-            identToken,
-            eql,
-            typExpr.Unwrap()!,
-            semiColon,
-            attributes.Count == 0 ? typeToken.Start : attributes[0].Start,
-            semiColon.End
-        ));
-    }
-
-    public Opt<TypeExpr> ParseTypeExpression()
+    public ParseResult<TypeExpr> ParseTypeExpression()
     {
         var ident = ParseIdentifier();
-        if (ident.IsEmpty()) return Opt<TypeExpr>.None();
-        var generic = ParseGeneric(false);
+        if (ident.Failed)
+            return ParseResult<TypeExpr>.WrongConstruct();
 
-        var identifier = ident.Unwrap()!;
-        return Opt<TypeExpr>.Some(new TypeExpr(
+        var generic = ParseGeneric(false);
+        var identifier = ident.Value!;
+
+        return ParseResult<TypeExpr>.Successful(new TypeExpr(
             identifier,
-            generic.Unwrap(),
+            generic.Value,
             identifier.Start,
             generic.GetOr(x => x.End, identifier.End)
         ));
     }
 
-    private Opt<IGeneric> ParseGeneric(bool asDecl)
+    private ParseResult<IGeneric> ParseGeneric(bool asDecl)
     {
-        if (!Check(TokenType.LessThan)) return Opt<IGeneric>.None();
-
-        var angleLeft = ConsumeAny();
-        if (angleLeft is null) return Opt<IGeneric>.None();
+        if (!Check(TokenType.LessThan)) return ParseResult<IGeneric>.WrongConstruct();
+        var angleLeft = ConsumeAny()!;
 
         if (Check(TokenType.SquareLeft))
         {
@@ -160,19 +156,18 @@ public class Parser
             if (asDecl)
             {
                 var param = ParseDelimited(ParseParam);
-
                 var sqrRight = Consume(TokenType.SquareRight);
-                if (sqrRight is null) return Opt<IGeneric>.None();
+                if (sqrRight is null) return ParseResult<IGeneric>.Error();
 
                 var angleRight = Consume(TokenType.GreaterThan);
-                if (angleRight is null) return Opt<IGeneric>.None();
+                if (angleRight is null) return ParseResult<IGeneric>.Error();
 
-                return Opt<IGeneric>.Some(new CompileTimeGeneric(
+                return ParseResult<IGeneric>.Successful(new CompileTimeGeneric(
                     angleLeft,
                     angleRight,
                     sqrLeft,
                     sqrRight,
-                    param.Unwrap(),
+                    param.Value,
                     angleLeft.Start,
                     angleRight.End
                 ));
@@ -180,19 +175,18 @@ public class Parser
             else
             {
                 var param = ParseDelimited(ParseExpression);
-
                 var sqrRight = Consume(TokenType.SquareRight);
-                if (sqrRight is null) return Opt<IGeneric>.None();
+                if (sqrRight is null) return ParseResult<IGeneric>.Error();
 
                 var angleRight = Consume(TokenType.GreaterThan);
-                if (angleRight is null) return Opt<IGeneric>.None();
+                if (angleRight is null) return ParseResult<IGeneric>.Error();
 
-                return Opt<IGeneric>.Some(new CompileTimeGenericArgs(
+                return ParseResult<IGeneric>.Successful(new CompileTimeGenericArgs(
                     angleLeft,
                     angleRight,
                     sqrLeft,
                     sqrRight,
-                    param.Unwrap(),
+                    param.Value,
                     angleLeft.Start,
                     angleRight.End
                 ));
@@ -203,12 +197,12 @@ public class Parser
         {
             var ts = ParseDelimited(ParseGenericT);
             var angleRight = Consume(TokenType.GreaterThan);
-            if (angleRight is null) return Opt<IGeneric>.None();
+            if (angleRight is null) return ParseResult<IGeneric>.Error();
 
-            return Opt<IGeneric>.Some(new RuntimeGeneric(
+            return ParseResult<IGeneric>.Successful(new RuntimeGeneric(
                 angleLeft,
                 angleRight,
-                ts.Unwrap(),
+                ts.Value,
                 angleLeft.Start,
                 angleRight.End
             ));
@@ -217,35 +211,35 @@ public class Parser
         {
             var ts = ParseDelimited(ParseTypeExpression);
             var angleRight = Consume(TokenType.GreaterThan);
-            if (angleRight is null) return Opt<IGeneric>.None();
+            if (angleRight is null) return ParseResult<IGeneric>.Error();
 
-            return Opt<IGeneric>.Some(new RuntimeGenericArgs(
+            return ParseResult<IGeneric>.Successful(new RuntimeGenericArgs(
                 angleLeft,
                 angleRight,
-                ts.Unwrap(),
+                ts.Value,
                 angleLeft.Start,
                 angleRight.End
             ));
         }
     }
 
-    private Opt<GenericT> ParseGenericT()
+    private ParseResult<GenericT> ParseGenericT()
     {
         var ident = Consume(TokenType.Identifier);
-        if (ident is null) return Opt<GenericT>.None();
-        return Opt<GenericT>.Some(new GenericT(ident));
+        if (ident is null) return ParseResult<GenericT>.WrongConstruct();
+        return ParseResult<GenericT>.Successful(new GenericT(ident));
     }
 
-    public Opt<Param> ParseParam()
+    private ParseResult<Param> ParseParam()
     {
         var type = ParseTypeExpression();
-        if (type.IsEmpty()) return Opt<Param>.None();
+        if (!type.Success) return ParseResult<Param>.WrongConstruct();
 
         var ident = Consume(TokenType.Identifier);
-        if (ident is null) return Opt<Param>.None();
+        if (ident is null) return ParseResult<Param>.Error();
 
-        var typeExpr = type.Unwrap()!;
-        return Opt<Param>.Some(new Param(
+        var typeExpr = type.Value!;
+        return ParseResult<Param>.Successful(new Param(
             typeExpr,
             ident,
             typeExpr.Start,
@@ -253,46 +247,48 @@ public class Parser
         ));
     }
 
-    private Opt<AccessModifier> ParseAccessModifier()
+    private ParseResult<AccessModifier> ParseAccessModifier()
     {
         var token = Consume(TokenType.Public, TokenType.Private, TokenType.Protected);
-        return token is null ? Opt<AccessModifier>.None() : Opt<AccessModifier>.Some(new AccessModifier(token));
+        return token is null
+            ? ParseResult<AccessModifier>.WrongConstruct()
+            : ParseResult<AccessModifier>.Successful(new AccessModifier(token));
     }
 
-    public List<Attribute> ParseAttributes()
+    private List<Attribute> ParseAttributes()
     {
         var lst = new List<Attribute>();
 
-        while (CheckAny(TokenType.SquareLeft))
+        while (Check(TokenType.SquareLeft))
         {
             var attr = ParseAttribute();
-            if (attr.IsEmpty()) break;
-            lst.Add(attr.Unwrap()!);
+            if (!attr.Success) continue;
+            lst.Add(attr.Value!);
         }
 
         return lst;
     }
 
-    private Opt<Attribute> ParseAttribute()
+    private ParseResult<Attribute> ParseAttribute()
     {
         var sqrLeft = Consume(TokenType.SquareLeft);
-        if (sqrLeft is null) return Opt<Attribute>.None();
+        if (sqrLeft is null) return ParseResult<Attribute>.WrongConstruct();
 
         var bodies = ParseDelimited(ParseAttributeBody);
 
         var sqrRight = Consume(TokenType.SquareRight);
-        if (sqrRight is null) return Opt<Attribute>.None();
+        if (sqrRight is null) return ParseResult<Attribute>.Error();
 
-        return Opt<Attribute>.Some(new Attribute(
+        return ParseResult<Attribute>.Successful(new Attribute(
             sqrLeft,
             sqrRight,
-            bodies.Unwrap(),
+            bodies.Value,
             sqrLeft.Start,
             sqrRight.End
         ));
     }
 
-    private Opt<Attribute.Body> ParseAttributeBody()
+    private ParseResult<Attribute.Body> ParseAttributeBody()
     {
         Token? at = null;
 
@@ -302,12 +298,12 @@ public class Parser
         }
 
         var ident = ParseIdentifier();
-        if (ident.IsEmpty()) return Opt<Attribute.Body>.None();
-        var identifier = ident.Unwrap()!;
+        if (!ident.Success) return ParseResult<Attribute.Body>.WrongConstruct();
+        var identifier = ident.Value!;
 
         if (!Check(TokenType.ParenLeft))
         {
-            return Opt<Attribute.Body>.Some(new Attribute.Body(
+            return ParseResult<Attribute.Body>.Successful(new Attribute.Body(
                 at,
                 identifier,
                 null,
@@ -321,51 +317,46 @@ public class Parser
         var parenL = ConsumeAny();
         var exprs = ParseDelimited(ParseExpression);
         var parenR = Consume(TokenType.ParenRight);
-        if (parenR is null) return Opt<Attribute.Body>.None();
+        if (parenR is null) return ParseResult<Attribute.Body>.Error();
 
-        return Opt<Attribute.Body>.Some(new Attribute.Body(
+        return ParseResult<Attribute.Body>.Successful(new Attribute.Body(
             at,
             identifier,
             parenL,
             parenR,
-            exprs.Unwrap(),
+            exprs.Value,
             at?.Start ?? identifier.Start,
             parenR.End
         ));
     }
 
-    public Opt<Identifier> ParseIdentifier()
+    public ParseResult<Identifier> ParseIdentifier()
     {
-        // Start with parsing the rightmost part
         var initial = ParseSimpleIdentifier();
-        if (initial.IsEmpty()) return Opt<Identifier>.None();
+        if (!initial.Success) return ParseResult<Identifier>.WrongConstruct();
 
-        var identifier = initial.Unwrap()!;
+        var identifier = initial.Value!;
         var start = identifier.Start;
 
-        // Build up the chain from right to left
         return ParseIdentifierLeft(identifier, start);
     }
 
-    private Opt<Identifier> ParseIdentifierLeft(Identifier right, int start)
+    private ParseResult<Identifier> ParseIdentifierLeft(Identifier right, int start)
     {
-        // Look ahead for a dot
         if (!Check(TokenType.Dot))
         {
-            return Opt<Identifier>.Some(right);
+            return ParseResult<Identifier>.Successful(right);
         }
 
         var dot = ConsumeAny();
-
         var nextRight = TryParse(ParseSimpleIdentifier);
-        if (nextRight.IsEmpty())
+        if (nextRight.IsDifferentConstruct)
         {
             _current--; // unconsume the dot
-            return Opt<Identifier>.Some(right);
+            return ParseResult<Identifier>.Successful(right);
         }
 
-        // Create new identifier node
-        var identifier = nextRight.Unwrap()!;
+        var identifier = nextRight.Value!;
         var newNode = new Identifier(
             right,
             dot,
@@ -374,19 +365,18 @@ public class Parser
             identifier.End
         );
 
-        // Recursively parse more left parts
         return ParseIdentifierLeft(newNode, start);
     }
 
-    private Opt<Identifier> ParseSimpleIdentifier()
+    private ParseResult<Identifier> ParseSimpleIdentifier()
     {
         if (!Check(TokenType.Identifier))
         {
-            return Opt<Identifier>.None();
+            return ParseResult<Identifier>.WrongConstruct();
         }
 
         var token = ConsumeAny()!;
-        return Opt<Identifier>.Some(new Identifier(
+        return ParseResult<Identifier>.Successful(new Identifier(
             null,
             null,
             token,
@@ -395,25 +385,25 @@ public class Parser
         ));
     }
 
-    public Opt<IExpression> ParseExpression()
+    public ParseResult<IExpression> ParseExpression()
     {
         return ParseLogicalOr();
     }
 
-    private Opt<IExpression> ParseLogicalOr()
+    private ParseResult<IExpression> ParseLogicalOr()
     {
         var left = ParseLogicalAnd();
-        if (left.IsEmpty()) return Opt<IExpression>.None();
+        if (left.Failed) return ParseResult<IExpression>.Inherit(left);
 
         while (Check(TokenType.Or))
         {
             var op = ConsumeAny()!;
             var right = ParseLogicalAnd();
-            if (right.IsEmpty()) return Opt<IExpression>.None();
+            if (right.Failed) return ParseResult<IExpression>.Error();
 
-            var leftExpr = left.Unwrap()!;
-            var rightExpr = right.Unwrap()!;
-            left = Opt<IExpression>.Some(new BinaryExpr(
+            var leftExpr = left.Value!;
+            var rightExpr = right.Value!;
+            left = ParseResult<IExpression>.Successful(new BinaryExpr(
                 leftExpr,
                 op,
                 rightExpr,
@@ -425,20 +415,20 @@ public class Parser
         return left;
     }
 
-    private Opt<IExpression> ParseLogicalAnd()
+    private ParseResult<IExpression> ParseLogicalAnd()
     {
         var left = ParseEquality();
-        if (left.IsEmpty()) return Opt<IExpression>.None();
+        if (left.Failed) return ParseResult<IExpression>.Inherit(left);
 
         while (Check(TokenType.And))
         {
             var op = ConsumeAny()!;
             var right = ParseEquality();
-            if (right.IsEmpty()) return Opt<IExpression>.None();
+            if (right.Failed) return ParseResult<IExpression>.Error();
 
-            var leftExpr = left.Unwrap()!;
-            var rightExpr = right.Unwrap()!;
-            left = Opt<IExpression>.Some(new BinaryExpr(
+            var leftExpr = left.Value!;
+            var rightExpr = right.Value!;
+            left = ParseResult<IExpression>.Successful(new BinaryExpr(
                 leftExpr,
                 op,
                 rightExpr,
@@ -450,20 +440,20 @@ public class Parser
         return left;
     }
 
-    private Opt<IExpression> ParseEquality()
+    private ParseResult<IExpression> ParseEquality()
     {
         var left = ParseRelational();
-        if (left.IsEmpty()) return Opt<IExpression>.None();
+        if (left.Failed) return ParseResult<IExpression>.Inherit(left);
 
         while (Check(TokenType.Equality) || Check(TokenType.NotEqual))
         {
             var op = ConsumeAny()!;
             var right = ParseRelational();
-            if (right.IsEmpty()) return Opt<IExpression>.None();
+            if (right.Failed) return ParseResult<IExpression>.Error();
 
-            var leftExpr = left.Unwrap()!;
-            var rightExpr = right.Unwrap()!;
-            left = Opt<IExpression>.Some(new BinaryExpr(
+            var leftExpr = left.Value!;
+            var rightExpr = right.Value!;
+            left = ParseResult<IExpression>.Successful(new BinaryExpr(
                 leftExpr,
                 op,
                 rightExpr,
@@ -475,21 +465,21 @@ public class Parser
         return left;
     }
 
-    private Opt<IExpression> ParseRelational()
+    private ParseResult<IExpression> ParseRelational()
     {
         var left = ParseAdditive();
-        if (left.IsEmpty()) return Opt<IExpression>.None();
+        if (left.Failed) return ParseResult<IExpression>.Inherit(left);
 
         while (Check(TokenType.GreaterThan) || Check(TokenType.LessThan) ||
                Check(TokenType.GreaterThanEquality) || Check(TokenType.LessThanEquality))
         {
             var op = ConsumeAny()!;
             var right = ParseAdditive();
-            if (right.IsEmpty()) return Opt<IExpression>.None();
+            if (right.Failed) return ParseResult<IExpression>.Error();
 
-            var leftExpr = left.Unwrap()!;
-            var rightExpr = right.Unwrap()!;
-            left = Opt<IExpression>.Some(new BinaryExpr(
+            var leftExpr = left.Value!;
+            var rightExpr = right.Value!;
+            left = ParseResult<IExpression>.Successful(new BinaryExpr(
                 leftExpr,
                 op,
                 rightExpr,
@@ -501,20 +491,20 @@ public class Parser
         return left;
     }
 
-    private Opt<IExpression> ParseAdditive()
+    private ParseResult<IExpression> ParseAdditive()
     {
         var left = ParseMultiplicative();
-        if (left.IsEmpty()) return Opt<IExpression>.None();
+        if (left.Failed) return ParseResult<IExpression>.Inherit(left);
 
         while (Check(TokenType.Plus) || Check(TokenType.Minus))
         {
             var op = ConsumeAny()!;
             var right = ParseMultiplicative();
-            if (right.IsEmpty()) return Opt<IExpression>.None();
+            if (right.Failed) return ParseResult<IExpression>.Error();
 
-            var leftExpr = left.Unwrap()!;
-            var rightExpr = right.Unwrap()!;
-            left = Opt<IExpression>.Some(new BinaryExpr(
+            var leftExpr = left.Value!;
+            var rightExpr = right.Value!;
+            left = ParseResult<IExpression>.Successful(new BinaryExpr(
                 leftExpr,
                 op,
                 rightExpr,
@@ -526,20 +516,20 @@ public class Parser
         return left;
     }
 
-    private Opt<IExpression> ParseMultiplicative()
+    private ParseResult<IExpression> ParseMultiplicative()
     {
         var left = ParseUnary();
-        if (left.IsEmpty()) return Opt<IExpression>.None();
+        if (left.Failed) return ParseResult<IExpression>.Inherit(left);
 
         while (Check(TokenType.Star) || Check(TokenType.Slash) || Check(TokenType.Percent))
         {
             var op = ConsumeAny()!;
             var right = ParseUnary();
-            if (right.IsEmpty()) return Opt<IExpression>.None();
+            if (right.Failed) return ParseResult<IExpression>.Error();
 
-            var leftExpr = left.Unwrap()!;
-            var rightExpr = right.Unwrap()!;
-            left = Opt<IExpression>.Some(new BinaryExpr(
+            var leftExpr = left.Value!;
+            var rightExpr = right.Value!;
+            left = ParseResult<IExpression>.Successful(new BinaryExpr(
                 leftExpr,
                 op,
                 rightExpr,
@@ -551,38 +541,35 @@ public class Parser
         return left;
     }
 
-    private Opt<IExpression> ParseUnary()
+    private ParseResult<IExpression> ParseUnary()
     {
-        if (Check(TokenType.Bang) || Check(TokenType.Minus) || Check(TokenType.Plus))
-        {
-            var op = ConsumeAny()!;
-            var expr = ParseUnary();
-            if (expr.IsEmpty()) return Opt<IExpression>.None();
+        if (!Check(TokenType.Bang) && !Check(TokenType.Minus) && !Check(TokenType.Plus)) return ParsePrimaryExpr();
+        
+        var op = ConsumeAny()!;
+        var expr = ParseUnary();
+        if (expr.Failed) return ParseResult<IExpression>.Error();
 
-            var expression = expr.Unwrap()!;
-            return Opt<IExpression>.Some(new UnaryExpr(
-                op,
-                expression,
-                op.Start,
-                expression.End
-            ));
-        }
-
-        return ParsePrimaryExpr();
+        var expression = expr.Value!;
+        return ParseResult<IExpression>.Successful(new UnaryExpr(
+            op,
+            expression,
+            op.Start,
+            expression.End
+        ));
     }
 
-    private Opt<IExpression> ParsePrimaryExpr()
+    private ParseResult<IExpression> ParsePrimaryExpr()
     {
         if (Check(TokenType.ParenLeft))
         {
             var left = ConsumeAny()!;
             var expr = ParseExpression();
-            if (expr.IsEmpty()) return Opt<IExpression>.None();
+            if (expr.Failed) return ParseResult<IExpression>.Error();
             var right = Consume(TokenType.ParenRight);
-            if (right is null) return Opt<IExpression>.None();
+            if (right is null) return ParseResult<IExpression>.Error();
 
-            var expression = expr.Unwrap()!;
-            return Opt<IExpression>.Some(new ParenExpr(
+            var expression = expr.Value!;
+            return ParseResult<IExpression>.Successful(new ParenExpr(
                 left,
                 expression,
                 right,
@@ -596,9 +583,9 @@ public class Parser
             var left = ConsumeAny()!;
             var stmts = ParseStatements();
             var right = Consume(TokenType.CurlyRight);
-            if (right is null) return Opt<IExpression>.None();
+            if (right is null) return ParseResult<IExpression>.Error();
 
-            return Opt<IExpression>.Some(new BlockExpr(
+            return ParseResult<IExpression>.Successful(new BlockExpr(
                 left,
                 stmts,
                 right,
@@ -620,25 +607,25 @@ public class Parser
         if (Check(TokenType.LiteralNumber))
         {
             var num = ConsumeAny()!;
-            return Opt<IExpression>.Some(new LiteralExpr(num));
+            return ParseResult<IExpression>.Successful(new LiteralExpr(num));
         }
 
         if (Check(TokenType.LiteralString))
         {
             var str = ConsumeAny()!;
-            return Opt<IExpression>.Some(new LiteralExpr(str));
+            return ParseResult<IExpression>.Successful(new LiteralExpr(str));
         }
 
         if (Check(TokenType.LiteralBool))
         {
             var boolean = ConsumeAny()!;
-            return Opt<IExpression>.Some(new LiteralExpr(boolean));
+            return ParseResult<IExpression>.Successful(new LiteralExpr(boolean));
         }
 
         if (Check(TokenType.This))
         {
             var thisToken = ConsumeAny()!;
-            return Opt<IExpression>.Some(new ThisExpr(thisToken));
+            return ParseResult<IExpression>.Successful(new ThisExpr(thisToken));
         }
 
         if (Check(TokenType.At))
@@ -648,25 +635,24 @@ public class Parser
 
         if (Check(TokenType.CodeBlock))
         {
-            return Opt<IExpression>.Some(new CodeBlockExpr(ConsumeAny()!));
+            return ParseResult<IExpression>.Successful(new CodeBlockExpr(ConsumeAny()!));
         }
 
-        // Try to parse as identifier (which might be a function call)
         var ident = ParseIdentifier();
-        if (ident.IsEmpty()) return Opt<IExpression>.None();
-        var identifier = ident.Unwrap()!;
+        if (ident.Failed) return ParseResult<IExpression>.WrongConstruct();
+        var identifier = ident.Value!;
 
         if (Check(TokenType.ParenLeft))
         {
             var left = ConsumeAny()!;
             var args = ParseDelimited(ParseExpression);
             var right = Consume(TokenType.ParenRight);
-            if (right is null) return Opt<IExpression>.None();
+            if (right is null) return ParseResult<IExpression>.Error();
 
-            return Opt<IExpression>.Some(new FunctionCallExpr(
+            return ParseResult<IExpression>.Successful(new FunctionCallExpr(
                 identifier,
                 left,
-                args.Unwrap(),
+                args.Value,
                 right,
                 identifier.Start,
                 right.End
@@ -677,33 +663,33 @@ public class Parser
         {
             var eql = ConsumeAny()!;
             var right = ParseExpression();
-            if (right.IsEmpty()) return Opt<IExpression>.None();
+            if (right.Failed) return ParseResult<IExpression>.Error();
 
-            return Opt<IExpression>.Some(new AssignmentExpr(
+            return ParseResult<IExpression>.Successful(new AssignmentExpr(
                 identifier,
                 eql,
-                right.Unwrap()!,
+                right.Value!,
                 identifier.Start,
-                right.Unwrap()!.End
+                right.Value!.End
             ));
         }
 
-        return Opt<IExpression>.Some(identifier);
+        return ParseResult<IExpression>.Successful(identifier);
     }
 
-    private Opt<IExpression> ParseIfExpr()
+    private ParseResult<IExpression> ParseIfExpr()
     {
         var ifToken = ConsumeAny()!;
         var condition = ParseExpression();
-        if (condition.IsEmpty()) return Opt<IExpression>.None();
+        if (condition.Failed) return ParseResult<IExpression>.Error();
 
         var leftBrace = Consume(TokenType.CurlyLeft);
-        if (leftBrace is null) return Opt<IExpression>.None();
+        if (leftBrace is null) return ParseResult<IExpression>.Error();
 
         var thenStmts = ParseStatements();
 
         var rightBrace = Consume(TokenType.CurlyRight);
-        if (rightBrace is null) return Opt<IExpression>.None();
+        if (rightBrace is null) return ParseResult<IExpression>.Error();
 
         List<IfExpr.ElseIf> elseIfs = new();
 
@@ -717,20 +703,20 @@ public class Parser
                 var elseIfIf = ConsumeAny()!;
 
                 var elseIfCond = ParseExpression();
-                if (elseIfCond.IsEmpty()) return Opt<IExpression>.None();
+                if (elseIfCond.Failed) return ParseResult<IExpression>.Error();
 
                 var elseIfLeft = Consume(TokenType.CurlyLeft);
-                if (elseIfLeft is null) return Opt<IExpression>.None();
+                if (elseIfLeft is null) return ParseResult<IExpression>.Error();
 
                 var elseIfStmts = ParseStatements();
 
                 var elseIfRight = Consume(TokenType.CurlyRight);
-                if (elseIfRight is null) return Opt<IExpression>.None();
+                if (elseIfRight is null) return ParseResult<IExpression>.Error();
 
                 elseIfs.Add(new IfExpr.ElseIf(
                     elseToken,
                     elseIfIf,
-                    elseIfCond.Unwrap()!,
+                    elseIfCond.Value!,
                     new BlockExpr(elseIfLeft, elseIfStmts, elseIfRight, elseIfLeft.Start, elseIfRight.End),
                     elseToken.Start,
                     elseIfRight.End
@@ -740,12 +726,12 @@ public class Parser
             {
                 // This is a regular else block
                 var elseLeft = Consume(TokenType.CurlyLeft);
-                if (elseLeft is null) return Opt<IExpression>.None();
+                if (elseLeft is null) return ParseResult<IExpression>.Error();
 
                 var elseStmts = ParseStatements();
 
                 var elseRight = Consume(TokenType.CurlyRight);
-                if (elseRight is null) return Opt<IExpression>.None();
+                if (elseRight is null) return ParseResult<IExpression>.Error();
 
                 var elseBlock = new IfExpr.Else(
                     elseToken,
@@ -754,8 +740,8 @@ public class Parser
                     elseRight.End
                 );
 
-                var conditionExpr = condition.Unwrap()!;
-                return Opt<IExpression>.Some(new IfExpr(
+                var conditionExpr = condition.Value!;
+                return ParseResult<IExpression>.Successful(new IfExpr(
                     ifToken,
                     conditionExpr,
                     new BlockExpr(leftBrace, thenStmts, rightBrace, leftBrace.Start, rightBrace.End),
@@ -767,8 +753,8 @@ public class Parser
             }
         }
 
-        var conditionExpr2 = condition.Unwrap()!;
-        return Opt<IExpression>.Some(new IfExpr(
+        var conditionExpr2 = condition.Value!;
+        return ParseResult<IExpression>.Successful(new IfExpr(
             ifToken,
             conditionExpr2,
             new BlockExpr(leftBrace, thenStmts, rightBrace, leftBrace.Start, rightBrace.End),
@@ -779,127 +765,128 @@ public class Parser
         ));
     }
 
-    private Opt<IExpression> ParseMatchExpr()
+    private ParseResult<IExpression> ParseMatchExpr()
     {
         var matchToken = ConsumeAny()!;
 
         var matchee = ParseExpression();
-        if (matchee.IsEmpty()) return Opt<IExpression>.None();
+        if (matchee.Failed) return ParseResult<IExpression>.Error();
 
         var leftBrace = Consume(TokenType.CurlyLeft);
-        if (leftBrace is null) return Opt<IExpression>.None();
+        if (leftBrace is null) return ParseResult<IExpression>.Error();
 
         var cases = ParseDelimited(ParseMatchCase);
-        if (cases.IsEmpty()) return Opt<IExpression>.None();
+        if (cases.Failed) return ParseResult<IExpression>.Error();
 
         var rightBrace = Consume(TokenType.CurlyRight);
-        if (rightBrace is null) return Opt<IExpression>.None();
+        if (rightBrace is null) return ParseResult<IExpression>.Error();
 
-        return Opt<IExpression>.Some(new MatchExpr(
+        return ParseResult<IExpression>.Successful(new MatchExpr(
             matchToken,
-            matchee.Unwrap()!,
+            matchee.Value!,
             leftBrace,
-            cases.Unwrap()!,
+            cases.Value!,
             rightBrace,
             matchToken.Start,
             rightBrace.End
         ));
     }
 
-    private Opt<MatchExpr.IMatchCase> ParseMatchCase()
+    private ParseResult<MatchExpr.IMatchCase> ParseMatchCase()
     {
         // First try to parse as UnionCase
         var unionCase = TryParse(ParseUnionCase);
-        if (unionCase.HasValue()) return unionCase;
+        if (unionCase.Success) return unionCase;
+        if (!unionCase.IsDifferentConstruct) return ParseResult<MatchExpr.IMatchCase>.Error();
 
         // Then try as AnyCase
         var anyCase = TryParse(ParseAnyCase);
-        if (anyCase.HasValue()) return anyCase;
+        if (anyCase.Success) return anyCase;
+        if (!anyCase.IsDifferentConstruct) return ParseResult<MatchExpr.IMatchCase>.Error();
 
-        // Finally try as ExpressionCase
         return ParseExpressionCase();
     }
 
-    private Opt<MatchExpr.IMatchCase> ParseUnionCase()
+    private ParseResult<MatchExpr.IMatchCase> ParseUnionCase()
     {
         var ident = ParseIdentifier();
-        if (ident.IsEmpty()) return Opt<MatchExpr.IMatchCase>.None();
+        if (ident.Failed) return ParseResult<MatchExpr.IMatchCase>.Inherit(ident);
 
         var leftParen = Consume(TokenType.ParenLeft);
-        if (leftParen is null) return Opt<MatchExpr.IMatchCase>.None();
+        if (leftParen is null) return ParseResult<MatchExpr.IMatchCase>.WrongConstruct();
 
         var @params = ParseDelimited(ParseMatchParam);
 
         var rightParen = Consume(TokenType.ParenRight);
-        if (rightParen is null) return Opt<MatchExpr.IMatchCase>.None();
+        if (rightParen is null) return ParseResult<MatchExpr.IMatchCase>.Error();
 
         var arrow = Consume(TokenType.Arrow);
-        if (arrow is null) return Opt<MatchExpr.IMatchCase>.None();
+        if (arrow is null) return ParseResult<MatchExpr.IMatchCase>.Error();
 
         var body = ParseBlock();
-        if (body.IsEmpty()) return Opt<MatchExpr.IMatchCase>.None();
+        if (body.Failed) return ParseResult<MatchExpr.IMatchCase>.Error();
 
-        var identifier = ident.Unwrap()!;
-        return Opt<MatchExpr.IMatchCase>.Some(new MatchExpr.UnionCase(
+        var identifier = ident.Value!;
+        return ParseResult<MatchExpr.IMatchCase>.Successful(new MatchExpr.UnionCase(
             identifier,
             leftParen,
-            @params.Unwrap()!,
+            @params.Value!,
             rightParen,
             arrow,
-            body.Unwrap()!,
+            body.Value!,
             identifier.Start,
-            body.Unwrap()!.End
+            body.Value!.End
         ));
     }
 
-    private Opt<MatchExpr.IMatchCase> ParseAnyCase()
+    private ParseResult<MatchExpr.IMatchCase> ParseAnyCase()
     {
-        if (!Check(TokenType.Underscore)) return Opt<MatchExpr.IMatchCase>.None();
+        if (!Check(TokenType.Underscore)) return ParseResult<MatchExpr.IMatchCase>.WrongConstruct();
 
         var underscore = ConsumeAny()!;
 
         var arrow = Consume(TokenType.Arrow);
-        if (arrow is null) return Opt<MatchExpr.IMatchCase>.None();
+        if (arrow is null) return ParseResult<MatchExpr.IMatchCase>.Error();
 
         var body = ParseBlock();
-        if (body.IsEmpty()) return Opt<MatchExpr.IMatchCase>.None();
+        if (body.Failed) return ParseResult<MatchExpr.IMatchCase>.Error();
 
-        return Opt<MatchExpr.IMatchCase>.Some(new MatchExpr.AnyCase(
+        return ParseResult<MatchExpr.IMatchCase>.Successful(new MatchExpr.AnyCase(
             underscore,
             arrow,
-            body.Unwrap()!,
+            body.Value!,
             underscore.Start,
-            body.Unwrap()!.End
+            body.Value!.End
         ));
     }
 
-    private Opt<MatchExpr.IMatchCase> ParseExpressionCase()
+    private ParseResult<MatchExpr.IMatchCase> ParseExpressionCase()
     {
         var expr = ParseExpression();
-        if (expr.IsEmpty()) return Opt<MatchExpr.IMatchCase>.None();
+        if (expr.Failed) return ParseResult<MatchExpr.IMatchCase>.Inherit(expr);
 
         var arrow = Consume(TokenType.Arrow);
-        if (arrow is null) return Opt<MatchExpr.IMatchCase>.None();
+        if (arrow is null) return ParseResult<MatchExpr.IMatchCase>.Error();
 
         var body = ParseBlock();
-        if (body.IsEmpty()) return Opt<MatchExpr.IMatchCase>.None();
+        if (body.Failed) return ParseResult<MatchExpr.IMatchCase>.Error();
 
-        var expression = expr.Unwrap()!;
-        return Opt<MatchExpr.IMatchCase>.Some(new MatchExpr.ExpressionCase(
+        var expression = expr.Value!;
+        return ParseResult<MatchExpr.IMatchCase>.Successful(new MatchExpr.ExpressionCase(
             expression,
             arrow,
-            body.Unwrap()!,
+            body.Value!,
             expression.Start,
-            body.Unwrap()!.End
+            body.Value!.End
         ));
     }
 
-    private Opt<IMatchParam> ParseMatchParam()
+    private ParseResult<IMatchParam> ParseMatchParam()
     {
         if (Check(TokenType.Underscore))
         {
             var underscore = ConsumeAny()!;
-            return Opt<IMatchParam>.Some(new UnderscoreMatchParam(
+            return ParseResult<IMatchParam>.Successful(new UnderscoreMatchParam(
                 underscore,
                 underscore.Start,
                 underscore.End
@@ -907,26 +894,26 @@ public class Parser
         }
 
         var expr = ParseExpression();
-        if (expr.IsEmpty()) return Opt<IMatchParam>.None();
+        if (expr.Failed) return ParseResult<IMatchParam>.Error();
 
-        var expression = expr.Unwrap()!;
-        return Opt<IMatchParam>.Some(new ExpressionMatchParam(
+        var expression = expr.Value!;
+        return ParseResult<IMatchParam>.Successful(new ExpressionMatchParam(
             expression,
             expression.Start,
             expression.End
         ));
     }
 
-    private Opt<BlockExpr> ParseBlock()
+    private ParseResult<BlockExpr> ParseBlock()
     {
-        if (!Check(TokenType.CurlyLeft)) return Opt<BlockExpr>.None();
+        if (!Check(TokenType.CurlyLeft)) return ParseResult<BlockExpr>.WrongConstruct();
 
         var left = ConsumeAny()!;
         var stmts = ParseStatements();
         var right = Consume(TokenType.CurlyRight);
-        if (right is null) return Opt<BlockExpr>.None();
+        if (right is null) return ParseResult<BlockExpr>.Error();
 
-        return Opt<BlockExpr>.Some(new BlockExpr(
+        return ParseResult<BlockExpr>.Successful(new BlockExpr(
             left,
             stmts,
             right,
@@ -935,27 +922,27 @@ public class Parser
         ));
     }
 
-    private Opt<IExpression> ParseMacroCall()
+    private ParseResult<IExpression> ParseMacroCall()
     {
         var at = ConsumeAny()!;
 
         var ident = ParseIdentifier();
-        if (ident.IsEmpty()) return Opt<IExpression>.None();
+        if (ident.Failed) return ParseResult<IExpression>.Error();
 
         var leftParen = Consume(TokenType.ParenLeft);
-        if (leftParen is null) return Opt<IExpression>.None();
+        if (leftParen is null) return ParseResult<IExpression>.Error();
 
         var args = ParseDelimited(ParseExpression);
 
         var rightParen = Consume(TokenType.ParenRight);
-        if (rightParen is null) return Opt<IExpression>.None();
+        if (rightParen is null) return ParseResult<IExpression>.Error();
 
-        var identifier = ident.Unwrap()!;
-        return Opt<IExpression>.Some(new MacroCallExpr(
+        var identifier = ident.Value!;
+        return ParseResult<IExpression>.Successful(new MacroCallExpr(
             at,
             identifier,
             leftParen,
-            args.Unwrap(),
+            args.Value,
             rightParen,
             at.Start,
             rightParen.End
@@ -968,39 +955,39 @@ public class Parser
         {
             return [];
         }
-        
+
         var result = new List<IStatement>();
-        var tri = TryParse(ParseStatement, true);
-        
-        while (tri.HasValue())
+        var tri = TryParse(ParseStatement);
+
+        while (tri.Success)
         {
-            result.Add(tri.Unwrap()!);
+            result.Add(tri.Value!);
 
             if (Check(TokenType.CurlyRight))
             {
                 break;
             }
-            
-            tri = TryParse(ParseStatement, true);
+
+            tri = TryParse(ParseStatement);
         }
 
         return result;
     }
 
-    private Opt<IStatement> ParseStatement()
+    private ParseResult<IStatement> ParseStatement()
     {
         // Handle return statement
         if (Check(TokenType.Return))
         {
             var returnToken = ConsumeAny()!;
             var expr1 = ParseExpression();
-            if (expr1.IsEmpty()) return Opt<IStatement>.None();
+            if (expr1.Failed) return ParseResult<IStatement>.Error();
 
             var semicolon = Consume(TokenType.Semicolon);
-            if (semicolon is null) return Opt<IStatement>.None();
+            if (semicolon is null) return ParseResult<IStatement>.Error();
 
-            var expression1 = expr1.Unwrap()!;
-            return Opt<IStatement>.Some(new ReturnStatement(
+            var expression1 = expr1.Value!;
+            return ParseResult<IStatement>.Successful(new ReturnStatement(
                 returnToken,
                 expression1,
                 semicolon,
@@ -1011,17 +998,18 @@ public class Parser
 
         // Try to parse variable declaration first
         var varDecl = TryParse(ParseVarDecl);
-        if (varDecl.HasValue()) return varDecl;
+        if (varDecl.Success) return varDecl;
+        if (!varDecl.IsDifferentConstruct) return ParseResult<IStatement>.Error();
 
         // If not a variable declaration, must be an expression statement
         var expr = ParseExpression();
-        if (expr.IsEmpty()) return Opt<IStatement>.None();
+        if (expr.Failed) return ParseResult<IStatement>.Error();
 
         var semi = Consume(TokenType.Semicolon);
-        if (semi is null) return Opt<IStatement>.None();
+        if (semi is null) return ParseResult<IStatement>.Error();
 
-        var expression = expr.Unwrap()!;
-        return Opt<IStatement>.Some(new ExpressionStatement(
+        var expression = expr.Value!;
+        return ParseResult<IStatement>.Successful(new ExpressionStatement(
             expression,
             semi,
             expression.Start,
@@ -1029,13 +1017,13 @@ public class Parser
         ));
     }
 
-    private Opt<IStatement> ParseVarDecl()
+    private ParseResult<IStatement> ParseVarDecl()
     {
         var type = ParseTypeExpression();
-        if (type.IsEmpty()) return Opt<IStatement>.None();
+        if (type.Failed) return ParseResult<IStatement>.WrongConstruct();
 
         var ident = Consume(TokenType.Identifier);
-        if (ident is null) return Opt<IStatement>.None();
+        if (ident is null) return ParseResult<IStatement>.WrongConstruct();
 
         Token? equals = null;
         IExpression? initializer = null;
@@ -1044,15 +1032,15 @@ public class Parser
         {
             equals = ConsumeAny();
             var init = ParseExpression();
-            if (init.IsEmpty()) return Opt<IStatement>.None();
-            initializer = init.Unwrap();
+            if (init.Failed) return ParseResult<IStatement>.Error();
+            initializer = init.Value;
         }
 
         var semicolon = Consume(TokenType.Semicolon);
-        if (semicolon is null) return Opt<IStatement>.None();
+        if (semicolon is null) return ParseResult<IStatement>.Error();
 
-        var typeExpr = type.Unwrap()!;
-        return Opt<IStatement>.Some(new VariableDeclaration(
+        var typeExpr = type.Value!;
+        return ParseResult<IStatement>.Successful(new VariableDeclaration(
             typeExpr,
             ident,
             equals,
@@ -1063,19 +1051,19 @@ public class Parser
         ));
     }
 
-    private Opt<Delimited<T>> ParseDelimited<T>(Func<Opt<T>> parser)
+    private ParseResult<Delimited<T>> ParseDelimited<T>(Func<ParseResult<T>> parser)
         where T : IAstElement
     {
         var first = TryParse(parser);
-        if (!first.HasValue())
+        if (first.Failed)
         {
-            return Opt<Delimited<T>>.None();
+            return ParseResult<Delimited<T>>.Inherit(first);
         }
 
-        var astElement = first.Unwrap()!;
+        var astElement = first.Value!;
         if (!Check(TokenType.Comma))
         {
-            return Opt<Delimited<T>>.Some(new Delimited<T>(
+            return ParseResult<Delimited<T>>.Successful(new Delimited<T>(
                 astElement,
                 null,
                 null,
@@ -1087,9 +1075,9 @@ public class Parser
         var comma = ConsumeAny()!;
         var next = TryParse(() => ParseNext(comma, parser));
 
-        if (next.IsEmpty())
+        if (next.IsDifferentConstruct)
         {
-            return Opt<Delimited<T>>.Some(new Delimited<T>(
+            return ParseResult<Delimited<T>>.Successful(new Delimited<T>(
                 astElement,
                 null,
                 comma,
@@ -1098,15 +1086,20 @@ public class Parser
             ));
         }
 
+        if (next.Failed)
+        {
+            return ParseResult<Delimited<T>>.Error();
+        }
+
         Token? trailingComma = null;
-        var nextUnwrapped = next.Unwrap()!;
+        var nextUnwrapped = next.Value!;
 
         if (Check(TokenType.Comma))
         {
             trailingComma = ConsumeAny();
         }
 
-        return Opt<Delimited<T>>.Some(new Delimited<T>(
+        return ParseResult<Delimited<T>>.Successful(new Delimited<T>(
             astElement,
             nextUnwrapped,
             trailingComma,
@@ -1115,21 +1108,21 @@ public class Parser
         ));
     }
 
-    private Opt<Delimited<T>.Next> ParseNext<T>(Token comma, Func<Opt<T>> parser)
+    private ParseResult<Delimited<T>.Next> ParseNext<T>(Token comma, Func<ParseResult<T>> parser)
         where T : IAstElement
     {
         var result = parser();
 
-        if (result.IsEmpty())
+        if (result.Failed)
         {
-            return Opt<Delimited<T>.Next>.None();
+            return ParseResult<Delimited<T>.Next>.Inherit(result);
         }
 
-        var astElement = result.Unwrap()!;
+        var astElement = result.Value!;
 
         if (!Check(TokenType.Comma))
         {
-            return Opt<Delimited<T>.Next>.Some(new Delimited<T>.Next(
+            return ParseResult<Delimited<T>.Next>.Successful(new Delimited<T>.Next(
                 comma,
                 astElement,
                 null,
@@ -1141,39 +1134,57 @@ public class Parser
         var commaNext = ConsumeAny()!;
         var next = TryParse(() => ParseNext(commaNext, parser));
 
-        if (next.IsEmpty())
+        if (next.Failed)
         {
+            if (!next.IsDifferentConstruct)
+            {
+                return ParseResult<Delimited<T>.Next>.Error();
+            }
+            
             // unconsume commaNext
             _current--;
         }
 
-        return Opt<Delimited<T>.Next>.Some(new Delimited<T>.Next(
+        return ParseResult<Delimited<T>.Next>.Successful(new Delimited<T>.Next(
             comma,
             astElement,
-            next.Unwrap(),
+            next.Value,
             comma.Start,
-            next.IsEmpty() ? astElement.End : next.Unwrap()!.End
+            next.Failed ? astElement.End : next.Value!.End
         ));
     }
 
-    private Opt<T> TryParse<T>(Func<Opt<T>> parser, bool keepErr = false)
+    private ParseResult<T> TryParse<T>(Func<ParseResult<T>> parser)
     {
         var curr = _current;
         var currErr = Errs.Count;
 
         var t = parser();
-        if (t.HasValue())
+        if (t.Success)
         {
             return t;
         }
 
+        if (!t.IsDifferentConstruct)
+        {
+            return ParseResult<T>.Error();
+        }
+
         _current = curr;
-        if (!keepErr && Errs.Count != currErr)
+        if (Errs.Count != currErr)
         {
             Errs.RemoveRange(currErr, Errs.Count - currErr);
         }
 
-        return Opt<T>.None();
+        return ParseResult<T>.WrongConstruct();
+    }
+
+    private void SkipToNext(params TokenType[] token)
+    {
+        while (!IsAtEnd() && !CheckAny(token))
+        {
+            Advance();
+        }
     }
 
     private Token Advance()
@@ -1193,10 +1204,15 @@ public class Parser
         return types.Length == 0 || types.Any(Check);
     }
 
+    /// <summary>
+    /// Consumes the next token if it matches the type, if not an error reported but the next token is not consumed
+    /// </summary>
+    /// <param name="type">Any valid types to consume</param>
+    /// <returns>The token consumed, null if token found does not match</returns>
     private Token? Consume(params TokenType[] type)
     {
         if (CheckAny(type)) return Advance();
-        Errs.Add(new UnexpectedTokenError(Advance(), type));
+        Errs.Add(new UnexpectedTokenError(Peek(), type));
         return null;
     }
 

@@ -20,8 +20,8 @@ public class ParserTest
         var p = new Parser(tokens, errs);
         var typeExpression = p.ParseTypeExpression();
 
-        Assert.IsFalse(typeExpression.IsEmpty());
-        var expr = typeExpression.Unwrap()!;
+        Assert.IsFalse(typeExpression.Failed);
+        var expr = typeExpression.Value!;
 
         // Verify the main type identifier "Res"
         Assert.AreEqual(new Identifier(null, null, tokens[0], 0, tokens[0].End), expr.Identifier);
@@ -69,7 +69,7 @@ public class ParserTest
         var p = new Parser(tokens, errs);
         var ident = p.ParseIdentifier();
 
-        Assert.IsFalse(ident.IsEmpty());
+        Assert.IsFalse(ident.Failed);
         Assert.AreEqual(new Identifier(
             new Identifier(
                 new Identifier(
@@ -88,7 +88,7 @@ public class ParserTest
             tokens[4],
             tokens[0].Start,
             tokens[4].End
-        ), ident.Unwrap()!);
+        ), ident.Value!);
     }
 
     [TestMethod]
@@ -98,8 +98,8 @@ public class ParserTest
         var p = new Parser(tokens, errs);
         var expr = p.ParseExpression();
 
-        Assert.IsFalse(expr.IsEmpty());
-        var binaryExpr = (BinaryExpr)expr.Unwrap()!;
+        Assert.IsFalse(expr.Failed);
+        var binaryExpr = (BinaryExpr)expr.Value!;
 
         // Should parse as: (1 + (2 * 3)) due to operator precedence
         Assert.AreEqual(TokenType.Plus, binaryExpr.Operator.Type);
@@ -121,8 +121,8 @@ public class ParserTest
         var p = new Parser(tokens, errs);
         var expr = p.ParseExpression();
 
-        Assert.IsFalse(expr.IsEmpty());
-        var funcCall = (FunctionCallExpr)expr.Unwrap()!;
+        Assert.IsFalse(expr.Failed);
+        var funcCall = (FunctionCallExpr)expr.Value!;
 
         // Verify function identifier
         Assert.AreEqual("function", funcCall.Function.Right.TokenData);
@@ -158,8 +158,8 @@ public class ParserTest
         var p = new Parser(tokens, errs);
         var expr = p.ParseExpression();
 
-        Assert.IsFalse(expr.IsEmpty());
-        var ifExpr = (IfExpr)expr.Unwrap()!;
+        Assert.IsFalse(expr.Failed);
+        var ifExpr = (IfExpr)expr.Value!;
 
         // Verify condition
         Assert.IsInstanceOfType(ifExpr.Condition, typeof(BinaryExpr));
@@ -181,22 +181,22 @@ public class ParserTest
     [TestMethod]
     public void ParseMatchExpression()
     {
-        var (tokens, errs) = Lexer.Tokenize(@"
-        match value {
-            Some(x) => { x + 1; },
-            None() => { 0; },
-            Other(2, _, y) => {
-                I32 hello = y n;
-                return hello + 42;
-            },
-            5 => { -1; },
-            _ => { @panic(); },
-        }");
+        var (tokens, errs) = Lexer.Tokenize(
+            """
+                    match value {
+                        Some(x) => { x + 1; },
+                        None() => { 0; },
+                        Other(2, _, y) => { hello(); },
+                        5 => { -1; },
+                        _ => { @panic(); },
+                    }
+            """);
+
         var p = new Parser(tokens, errs);
         var expr = p.ParseExpression();
 
-        Assert.IsFalse(expr.IsEmpty());
-        var matchExpr = (MatchExpr)expr.Unwrap()!;
+        Assert.IsFalse(expr.Failed);
+        var matchExpr = (MatchExpr)expr.Value!;
 
         // Verify matchee
         Assert.IsInstanceOfType(matchExpr.Matchee, typeof(Identifier));
@@ -266,10 +266,10 @@ public class ParserTest
         var p = new Parser(tokens, errs);
         var expr = p.ParseExpression();
 
-        Assert.IsFalse(expr.IsEmpty());
+        Assert.IsFalse(expr.Failed);
         Assert.AreEqual(0, p.Errs.Count);
 
-        var ifExpr = (IfExpr)expr.Unwrap()!;
+        var ifExpr = (IfExpr)expr.Value!;
 
         // Verify condition (x > 5 && y < 10)
         Assert.IsInstanceOfType(ifExpr.Condition, typeof(BinaryExpr));
@@ -358,9 +358,9 @@ public class ParserTest
 
         var p = new Parser(tokens, errs);
         var expr = p.ParseExpression();
-        Assert.IsFalse(expr.IsEmpty());
+        Assert.IsFalse(expr.Failed);
         Assert.AreEqual(0, errs.Count);
-        var matchExpr = (MatchExpr)expr.Unwrap()!;
+        var matchExpr = (MatchExpr)expr.Value!;
         // Check Some case statements
         var someCase = (MatchExpr.UnionCase)matchExpr.CaseList.First;
         Assert.AreEqual(2, someCase.Body.Statements.Count);
@@ -420,7 +420,7 @@ public class ParserTest
         var (tokens, errs) = Lexer.Tokenize("2 4;");
         var p = new Parser(tokens, errs);
         var stmts = p.ParseStatements();
-        
+
         Assert.AreEqual(0, stmts.Count);
         Assert.AreEqual(1, errs.Count);
         Assert.IsInstanceOfType<UnexpectedTokenError>(errs[0]);
