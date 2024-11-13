@@ -544,7 +544,7 @@ public class Parser
     private ParseResult<IExpression> ParseUnary()
     {
         if (!Check(TokenType.Bang) && !Check(TokenType.Minus) && !Check(TokenType.Plus)) return ParsePrimaryExpr();
-        
+
         var op = ConsumeAny()!;
         var expr = ParseUnary();
         if (expr.Failed) return ParseResult<IExpression>.Error();
@@ -642,7 +642,41 @@ public class Parser
         if (ident.Failed) return ParseResult<IExpression>.WrongConstruct();
         var identifier = ident.Value!;
 
-        if (Check(TokenType.ParenLeft))
+        if (Check(TokenType.LessThan))
+        {
+            var cr = _current;
+            var err = Errs.Count;
+            
+            var generic = ParseGeneric(false);
+
+            if (Check(TokenType.ParenLeft))
+            {
+                if (generic.Failed)
+                {
+                    return ParseResult<IExpression>.Error();
+                }
+                
+                var left = ConsumeAny()!;
+                var args = ParseDelimited(ParseExpression);
+                var right = Consume(TokenType.ParenRight);
+                if (right is null) return ParseResult<IExpression>.Error();
+
+                return ParseResult<IExpression>.Successful(new FunctionCallExpr(
+                    identifier,
+                    generic.Value,
+                    left,
+                    args.Value,
+                    right,
+                    identifier.Start,
+                    right.End
+                ));
+            }
+
+            // unparse the generic cuz it wasn't supposed to be parsed
+            _current = cr;
+            Errs.RemoveRange(err, Errs.Count - err);
+        }
+        else if (Check(TokenType.ParenLeft))
         {
             var left = ConsumeAny()!;
             var args = ParseDelimited(ParseExpression);
@@ -651,6 +685,7 @@ public class Parser
 
             return ParseResult<IExpression>.Successful(new FunctionCallExpr(
                 identifier,
+                null,
                 left,
                 args.Value,
                 right,
@@ -1140,7 +1175,7 @@ public class Parser
             {
                 return ParseResult<Delimited<T>.Next>.Error();
             }
-            
+
             // unconsume commaNext
             _current--;
         }
@@ -1165,12 +1200,12 @@ public class Parser
             return t;
         }
 
+        _current = curr;
         if (!t.IsDifferentConstruct)
         {
             return ParseResult<T>.Error();
         }
 
-        _current = curr;
         if (Errs.Count != currErr)
         {
             Errs.RemoveRange(currErr, Errs.Count - currErr);

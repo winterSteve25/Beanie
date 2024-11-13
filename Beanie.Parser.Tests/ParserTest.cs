@@ -150,6 +150,43 @@ public class ParserTest
 
         Assert.IsNotNull(args.Trailing);
     }
+    
+    [TestMethod]
+    public void ParseFunctionCallGeneric()
+    {
+        var (tokens, errs) = Lexer.Tokenize("test.function<Hello>(1, true, \"hello\", )");
+        var p = new Parser(tokens, errs);
+        var expr = p.ParseExpression();
+
+        Assert.IsFalse(expr.Failed);
+        var funcCall = (FunctionCallExpr)expr.Value!;
+
+        // Verify function identifier
+        Assert.AreEqual("function", funcCall.Function.Right.TokenData);
+        Assert.AreEqual("test", funcCall.Function.Left!.Right.TokenData);
+
+        // Verify arguments
+        Assert.IsNotNull(funcCall.Arguments);
+        var args = funcCall.Arguments!;
+
+        // First argument
+        Assert.IsInstanceOfType(args.First, typeof(LiteralExpr));
+        Assert.AreEqual("1", ((LiteralExpr)args.First).LiteralToken.TokenData);
+
+        // Second argument
+        Assert.IsNotNull(args.Second);
+        var second = args.Second!.This;
+        Assert.IsInstanceOfType(second, typeof(LiteralExpr));
+        Assert.AreEqual(true, ((LiteralExpr)second).LiteralToken.TokenData);
+
+        // Third argument
+        Assert.IsNotNull(args.Second.Other);
+        var third = args.Second.Other!.This;
+        Assert.IsInstanceOfType(third, typeof(LiteralExpr));
+        Assert.AreEqual("hello", ((LiteralExpr)third).LiteralToken.TokenData);
+
+        Assert.IsNotNull(args.Trailing);
+    }
 
     [TestMethod]
     public void ParseIfExpression()
