@@ -1,7 +1,7 @@
 namespace Parser.AST.Expressions;
 
 public record TypeExpr(
-    Identifier Identifier,
+    MemberAccessExpr Identifier,
     IGeneric? Generic,
     int Start,
     int End

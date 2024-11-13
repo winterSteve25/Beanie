@@ -2,7 +2,7 @@ namespace Parser.AST.Expressions;
 
 public record MacroCallExpr(
     Token AtToken,
-    Identifier Macro,
+    MemberAccessExpr Macro,
     Token? ParenLeft,
     Delimited<IExpression>? Arguments,
     Token? ParenRight,

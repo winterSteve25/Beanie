@@ -1,10 +1,10 @@
-using System.Text;
+using Parser.AST.Expressions;
 
 namespace Parser.AST.Declarations;
 
 public record NamespaceUnit(
     Token? NamespaceToken,
-    Identifier? Namespace,
+    MemberAccessExpr? Namespace,
     List<IDeclaration> Items,
     int Start,
     int End

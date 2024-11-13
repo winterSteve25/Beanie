@@ -1,7 +1,7 @@
 namespace Parser.AST.Expressions;
 
 public record FunctionCallExpr(
-    Identifier Function,
+    MemberAccessExpr Function,
     IGeneric? GenericParam,
     Token ParenLeft,
     Delimited<IExpression>? Arguments,

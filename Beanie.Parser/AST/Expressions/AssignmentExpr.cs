@@ -1,7 +1,7 @@
 namespace Parser.AST.Expressions;
 
 public record AssignmentExpr(
-    Identifier Ident,
+    MemberAccessExpr Ident,
     Token EqualToken,
     IExpression Right,
     int Start,

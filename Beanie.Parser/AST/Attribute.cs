@@ -1,3 +1,5 @@
+using Parser.AST.Expressions;
+
 namespace Parser.AST;
 
 public record Attribute(
@@ -10,7 +12,7 @@ public record Attribute(
 {
     public record Body(
         Token? At,
-        Identifier Name,
+        MemberAccessExpr Name,
         Token? ParenL,
         Token? ParenR,
         Delimited<IExpression>? Expressions,

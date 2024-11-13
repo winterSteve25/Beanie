@@ -24,7 +24,7 @@ public class ParserTest
         var expr = typeExpression.Value!;
 
         // Verify the main type identifier "Res"
-        Assert.AreEqual(new Identifier(null, null, tokens[0], 0, tokens[0].End), expr.Identifier);
+        Assert.AreEqual(new MemberAccessExpr(null, null, tokens[0], 0, tokens[0].End), expr.Identifier);
 
         // Verify the generic arguments
         Assert.IsNotNull(expr.Generic);
@@ -40,13 +40,14 @@ public class ParserTest
 
         // First argument: Hello
         var firstArg = args.First;
-        Assert.AreEqual(new Identifier(null, null, tokens[2], tokens[2].Start, tokens[2].End), firstArg.Identifier);
+        Assert.AreEqual(new MemberAccessExpr(null, null, tokens[2], tokens[2].Start, tokens[2].End),
+            firstArg.Identifier);
         Assert.IsNull(firstArg.Generic);
 
         // Second argument: Other.Class<It>
         var secondArg = args.Second!.This;
-        Assert.AreEqual(new Identifier(
-            new Identifier(null, null, tokens[4], tokens[4].Start, tokens[4].End),
+        Assert.AreEqual(new MemberAccessExpr(
+            new MemberAccessExpr(null, null, tokens[4], tokens[4].Start, tokens[4].End),
             tokens[5],
             tokens[6],
             tokens[4].Start,
@@ -59,7 +60,8 @@ public class ParserTest
         Assert.AreEqual(tokens[9], nestedGeneric.AngeldR);
 
         var nestedArg = nestedGeneric.Generics!.First;
-        Assert.AreEqual(new Identifier(null, null, tokens[8], tokens[8].Start, tokens[8].End), nestedArg.Identifier);
+        Assert.AreEqual(new MemberAccessExpr(null, null, tokens[8], tokens[8].Start, tokens[8].End),
+            nestedArg.Identifier);
     }
 
     [TestMethod]
@@ -67,12 +69,12 @@ public class ParserTest
     {
         var (tokens, errs) = Lexer.Tokenize("System.API.This");
         var p = new Parser(tokens, errs);
-        var ident = p.ParseIdentifier();
+        var ident = p.ParseExpression();
 
         Assert.IsFalse(ident.Failed);
-        Assert.AreEqual(new Identifier(
-            new Identifier(
-                new Identifier(
+        Assert.AreEqual(new MemberAccessExpr(
+            new MemberAccessExpr(
+                new MemberAccessExpr(
                     null,
                     null,
                     tokens[0],
@@ -125,8 +127,8 @@ public class ParserTest
         var funcCall = (FunctionCallExpr)expr.Value!;
 
         // Verify function identifier
-        Assert.AreEqual("function", funcCall.Function.Right.TokenData);
-        Assert.AreEqual("test", funcCall.Function.Left!.Right.TokenData);
+        Assert.AreEqual("function", funcCall.Function.Identifier.TokenData);
+        Assert.AreEqual("test", ((MemberAccessExpr)funcCall.Function.Left!).Identifier.TokenData);
 
         // Verify arguments
         Assert.IsNotNull(funcCall.Arguments);
@@ -150,11 +152,11 @@ public class ParserTest
 
         Assert.IsNotNull(args.Trailing);
     }
-    
+
     [TestMethod]
     public void ParseFunctionCallGeneric()
     {
-        var (tokens, errs) = Lexer.Tokenize("test.function<Hello>(1, true, \"hello\", )");
+        var (tokens, errs) = Lexer.Tokenize("test.function<Foo>(1, true, \"hello\", )");
         var p = new Parser(tokens, errs);
         var expr = p.ParseExpression();
 
@@ -162,8 +164,8 @@ public class ParserTest
         var funcCall = (FunctionCallExpr)expr.Value!;
 
         // Verify function identifier
-        Assert.AreEqual("function", funcCall.Function.Right.TokenData);
-        Assert.AreEqual("test", funcCall.Function.Left!.Right.TokenData);
+        Assert.AreEqual("function", funcCall.Function.Identifier.TokenData);
+        Assert.AreEqual("test", ((MemberAccessExpr)funcCall.Function.Left!).Identifier.TokenData);
 
         // Verify arguments
         Assert.IsNotNull(funcCall.Arguments);
@@ -202,7 +204,7 @@ public class ParserTest
         Assert.IsInstanceOfType(ifExpr.Condition, typeof(BinaryExpr));
         var condition = (BinaryExpr)ifExpr.Condition;
         Assert.AreEqual(TokenType.GreaterThan, condition.Operator.Type);
-        Assert.IsInstanceOfType(condition.Left, typeof(Identifier));
+        Assert.IsInstanceOfType(condition.Left, typeof(MemberAccessExpr));
         Assert.IsInstanceOfType(condition.Right, typeof(LiteralExpr));
 
         // Verify then block
@@ -236,8 +238,8 @@ public class ParserTest
         var matchExpr = (MatchExpr)expr.Value!;
 
         // Verify matchee
-        Assert.IsInstanceOfType(matchExpr.Matchee, typeof(Identifier));
-        Assert.AreEqual("value", ((Identifier)matchExpr.Matchee).Right.TokenData);
+        Assert.IsInstanceOfType(matchExpr.Matchee, typeof(MemberAccessExpr));
+        Assert.AreEqual("value", ((MemberAccessExpr)matchExpr.Matchee).Identifier.TokenData);
 
         // Verify cases
         Assert.IsNotNull(matchExpr.CaseList);
@@ -246,21 +248,21 @@ public class ParserTest
         // First case (Some(x))
         Assert.IsInstanceOfType(cases.First, typeof(MatchExpr.UnionCase));
         var someCase = (MatchExpr.UnionCase)cases.First;
-        Assert.AreEqual("Some", someCase.Case.Right.TokenData);
+        Assert.AreEqual("Some", someCase.CaseIdent.TokenData);
         Assert.IsNotNull(someCase.Params);
         Assert.IsInstanceOfType(someCase.Params.First, typeof(ExpressionMatchParam));
-        Assert.IsInstanceOfType(((ExpressionMatchParam)someCase.Params.First).Expression, typeof(Identifier));
+        Assert.IsInstanceOfType(((ExpressionMatchParam)someCase.Params.First).Expression, typeof(MemberAccessExpr));
 
         // Second case (None())
         Assert.IsNotNull(cases.Second);
         Assert.IsInstanceOfType(cases.Second!.This, typeof(MatchExpr.UnionCase));
         var noneCase = (MatchExpr.UnionCase)cases.Second.This;
-        Assert.AreEqual("None", noneCase.Case.Right.TokenData);
+        Assert.AreEqual("None", noneCase.CaseIdent.TokenData);
 
         // Third case (Other(2, _, y))
         Assert.IsNotNull(cases.Second.Other);
         var otherCase = (MatchExpr.UnionCase)cases.Second.Other!.This;
-        Assert.AreEqual("Other", otherCase.Case.Right.TokenData);
+        Assert.AreEqual("Other", otherCase.CaseIdent.TokenData);
         Assert.IsNotNull(otherCase.Params);
 
         // Verify parameters of Other case
@@ -274,7 +276,7 @@ public class ParserTest
 
         Assert.IsNotNull(otherParams.Second.Other);
         Assert.IsInstanceOfType(otherParams.Second.Other!.This, typeof(ExpressionMatchParam));
-        Assert.IsInstanceOfType(((ExpressionMatchParam)otherParams.Second.Other!.This).Expression, typeof(Identifier));
+        Assert.IsInstanceOfType(((ExpressionMatchParam)otherParams.Second.Other!.This).Expression, typeof(MemberAccessExpr));
 
         // Fourth case (5 => ...)
         Assert.IsNotNull(cases.Second.Other.Other);
@@ -345,7 +347,7 @@ public class ParserTest
         // Variable declaration
         Assert.IsInstanceOfType(statements[0], typeof(VariableDeclaration));
         var varDecl = (VariableDeclaration)statements[0];
-        Assert.AreEqual("I32", varDecl.Type.Identifier.Right.TokenData);
+        Assert.AreEqual("I32", varDecl.Type.Identifier.Identifier.TokenData);
         Assert.AreEqual("x", varDecl.Identifier.TokenData);
         Assert.IsInstanceOfType(varDecl.InitialExpression, typeof(LiteralExpr));
 
@@ -438,16 +440,16 @@ public class ParserTest
         Assert.IsInstanceOfType<BinaryExpr>(binExpr.Right);
 
         var right = (BinaryExpr)binExpr.Right;
-        Assert.IsInstanceOfType<Identifier>(right.Left);
-        Assert.AreEqual(right.Left, new Identifier(null, null, tokens[2], tokens[2].Start, tokens[2].End));
+        Assert.IsInstanceOfType<MemberAccessExpr>(right.Left);
+        Assert.AreEqual(right.Left, new MemberAccessExpr(null, null, tokens[2], tokens[2].Start, tokens[2].End));
 
         Assert.IsInstanceOfType<ParenExpr>(right.Right);
         Assert.IsInstanceOfType<BinaryExpr>(((ParenExpr)right.Right).Inner);
 
         var inner = (BinaryExpr)((ParenExpr)right.Right).Inner;
-        Assert.IsInstanceOfType<Identifier>(inner.Left);
+        Assert.IsInstanceOfType<MemberAccessExpr>(inner.Left);
         Assert.IsInstanceOfType<LiteralExpr>(inner.Right);
-        Assert.AreEqual(new Identifier(null, null, tokens[5], tokens[5].Start, tokens[5].End), inner.Left);
+        Assert.AreEqual(new MemberAccessExpr(null, null, tokens[5], tokens[5].Start, tokens[5].End), inner.Left);
         Assert.AreEqual(new LiteralExpr(tokens[7]), inner.Right);
     }
 

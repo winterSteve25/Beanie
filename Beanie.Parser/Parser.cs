@@ -38,7 +38,7 @@ public class Parser
         if (namespaceToken is null)
             return ParseResult<NamespaceUnit>.WrongConstruct();
 
-        var identifier = ParseIdentifier();
+        var identifier = ParseMemberAccess(out _);
         if (identifier.Failed)
             return ParseResult<NamespaceUnit>.Error();
 
@@ -130,7 +130,7 @@ public class Parser
 
     public ParseResult<TypeExpr> ParseTypeExpression()
     {
-        var ident = ParseIdentifier();
+        var ident = ParseMemberAccess(out _);
         if (ident.Failed)
             return ParseResult<TypeExpr>.WrongConstruct();
 
@@ -196,6 +196,8 @@ public class Parser
         if (asDecl)
         {
             var ts = ParseDelimited(ParseGenericT);
+            if (ts.Failed && ts.IsDifferentConstruct) return ParseResult<IGeneric>.WrongConstruct();
+
             var angleRight = Consume(TokenType.GreaterThan);
             if (angleRight is null) return ParseResult<IGeneric>.Error();
 
@@ -210,6 +212,8 @@ public class Parser
         else
         {
             var ts = ParseDelimited(ParseTypeExpression);
+            if (ts.Failed && ts.IsDifferentConstruct) return ParseResult<IGeneric>.WrongConstruct();
+
             var angleRight = Consume(TokenType.GreaterThan);
             if (angleRight is null) return ParseResult<IGeneric>.Error();
 
@@ -297,7 +301,7 @@ public class Parser
             at = ConsumeAny();
         }
 
-        var ident = ParseIdentifier();
+        var ident = ParseMemberAccess(out _);
         if (!ident.Success) return ParseResult<Attribute.Body>.WrongConstruct();
         var identifier = ident.Value!;
 
@@ -330,59 +334,174 @@ public class Parser
         ));
     }
 
-    public ParseResult<Identifier> ParseIdentifier()
+    /// <summary>
+    /// Parses a chain of member access, may only have 1
+    /// Eg: hello,
+    ///     foo.bar,
+    ///     Foo().bar,
+    ///     Foo&lt;T&gt;.Bar()
+    /// </summary>
+    /// <param name="n">DO NOT USE, use out _</param>
+    /// <param name="f">DO NOT CHANGE, use false</param>
+    /// <param name="canHaveFunction">Whether accepts function in chain</param>
+    /// <returns></returns>
+    private ParseResult<MemberAccessExpr> ParseMemberAccess(out IExpression? n, bool f = false, bool canHaveFunction = true)
     {
-        var initial = ParseSimpleIdentifier();
-        if (!initial.Success) return ParseResult<Identifier>.WrongConstruct();
-
-        var identifier = initial.Value!;
-        var start = identifier.Start;
-
-        return ParseIdentifierLeft(identifier, start);
-    }
-
-    private ParseResult<Identifier> ParseIdentifierLeft(Identifier right, int start)
-    {
-        if (!Check(TokenType.Dot))
+        // First parse any primary expression
+        var left = ParsePrimaryExpr();
+        if (left.Failed)
         {
-            return ParseResult<Identifier>.Successful(right);
+            n = null;
+            return f
+                ? ParseResult<MemberAccessExpr>.Inherit(left)
+                : ParseResult<MemberAccessExpr>.Error();
         }
 
-        var dot = ConsumeAny();
-        var nextRight = TryParse(ParseSimpleIdentifier);
-        if (nextRight.IsDifferentConstruct)
+        var lastPosBeforeConsume = _current;
+        var lastErrBeforeConsume = Errs.Count;
+        var atLeast1 = false;
+
+        // Handle member access chains, function calls, generics, etc.
+        while (true)
         {
-            _current--; // unconsume the dot
-            return ParseResult<Identifier>.Successful(right);
+            if (Check(TokenType.Dot))
+            {
+                var dot = ConsumeAny()!;
+                var identifier = Consume(TokenType.Identifier);
+                if (identifier is null)
+                {
+                    n = left.Value;
+                    return ParseResult<MemberAccessExpr>.Error();
+                }
+
+                lastPosBeforeConsume = _current;
+                lastErrBeforeConsume = Errs.Count;
+
+                atLeast1 = false;
+                left = ParseResult<IExpression>.Successful(new MemberAccessExpr(
+                    left.Value,
+                    dot,
+                    identifier,
+                    left.Value!.Start,
+                    identifier.End
+                ));
+                continue;
+            }
+
+            if (left.Value is not MemberAccessExpr leftExpr)
+            {
+                if (atLeast1)
+                {
+                    if (left.Value is FunctionCallExpr fn)
+                    {
+                        left = ParseResult<IExpression>.Successful(fn.Function);
+                    }
+
+                    if (left.Value is TypeExpr typ)
+                    {
+                        left = ParseResult<IExpression>.Successful(typ.Identifier);
+                    }
+                    
+                    break;
+                }
+                n = left.Value!;
+                return ParseResult<MemberAccessExpr>.WrongConstruct();
+            }
+
+            if (Check(TokenType.LessThan))
+            {
+                var c = _current;
+                var e = Errs.Count;
+
+                var generic = ParseGeneric(false);
+
+                if (canHaveFunction && Check(TokenType.ParenLeft))
+                {
+                    if (generic.Failed)
+                    {
+                        n = left.Value;
+                        return ParseResult<MemberAccessExpr>.Error();
+                    }
+
+                    var leftParen = ConsumeAny()!;
+                    var args = ParseDelimited(ParseExpression);
+                    var rightParen = Consume(TokenType.ParenRight);
+                    if (rightParen is null)
+                    {
+                        n = left.Value;
+                        return ParseResult<MemberAccessExpr>.Error();
+                    }
+
+                    atLeast1 = true;
+                    left = ParseResult<IExpression>.Successful(new FunctionCallExpr(
+                        leftExpr,
+                        generic.Value,
+                        leftParen,
+                        args.Value,
+                        rightParen,
+                        leftExpr.Start,
+                        rightParen.End
+                    ));
+                    continue;
+                }
+
+                // just gonna assume unless generic was successfully parsed, that it is not supposed to be a generic
+                // to account for expressions such as x < y
+                if (generic.Failed)
+                {
+                    // unconsume the generic
+                    _current = c;
+                    Errs.RemoveRange(e, Errs.Count - lastErrBeforeConsume);
+                }
+                else
+                {
+                    atLeast1 = true;
+                    left = ParseResult<IExpression>.Successful(new TypeExpr(
+                        leftExpr,
+                        generic.Value,
+                        leftExpr.Start,
+                        generic.Value!.End
+                    ));
+                    continue;
+                }
+            }
+            else if (canHaveFunction && Check(TokenType.ParenLeft))
+            {
+                var leftParen = ConsumeAny()!;
+                var args = ParseDelimited(ParseExpression);
+                var rightParen = Consume(TokenType.ParenRight);
+                if (rightParen is null)
+                {
+                    n = left.Value;
+                    return ParseResult<MemberAccessExpr>.Error();
+                }
+
+                atLeast1 = true;
+                left = ParseResult<IExpression>.Successful(new FunctionCallExpr(
+                    leftExpr,
+                    null,
+                    leftParen,
+                    args.Value,
+                    rightParen,
+                    leftExpr.Start,
+                    rightParen.End
+                ));
+                continue;
+            }
+
+            break;
         }
 
-        var identifier = nextRight.Value!;
-        var newNode = new Identifier(
-            right,
-            dot,
-            identifier.Right,
-            start,
-            identifier.End
-        );
+        _current = lastPosBeforeConsume;
+        Errs.RemoveRange(lastErrBeforeConsume, Errs.Count - lastErrBeforeConsume);
 
-        return ParseIdentifierLeft(newNode, start);
-    }
-
-    private ParseResult<Identifier> ParseSimpleIdentifier()
-    {
-        if (!Check(TokenType.Identifier))
+        if (left.Value is not MemberAccessExpr)
         {
-            return ParseResult<Identifier>.WrongConstruct();
+            Console.WriteLine("This should not happen");
         }
 
-        var token = ConsumeAny()!;
-        return ParseResult<Identifier>.Successful(new Identifier(
-            null,
-            null,
-            token,
-            token.Start,
-            token.End
-        ));
+        n = null;
+        return left.Cast<MemberAccessExpr>();
     }
 
     public ParseResult<IExpression> ParseExpression()
@@ -543,7 +662,11 @@ public class Parser
 
     private ParseResult<IExpression> ParseUnary()
     {
-        if (!Check(TokenType.Bang) && !Check(TokenType.Minus) && !Check(TokenType.Plus)) return ParsePrimaryExpr();
+        if (!Check(TokenType.Bang) && !Check(TokenType.Minus) && !Check(TokenType.Plus))
+        {
+            var result = ParseMemberAccess(out var e, true);
+            return e is null ? result.Cast<IExpression>() : ParseResult<IExpression>.Successful(e);
+        }
 
         var op = ConsumeAny()!;
         var expr = ParseUnary();
@@ -638,78 +761,16 @@ public class Parser
             return ParseResult<IExpression>.Successful(new CodeBlockExpr(ConsumeAny()!));
         }
 
-        var ident = ParseIdentifier();
-        if (ident.Failed) return ParseResult<IExpression>.WrongConstruct();
-        var identifier = ident.Value!;
+        if (!Check(TokenType.Identifier)) return ParseResult<IExpression>.WrongConstruct();
 
-        if (Check(TokenType.LessThan))
-        {
-            var cr = _current;
-            var err = Errs.Count;
-            
-            var generic = ParseGeneric(false);
-
-            if (Check(TokenType.ParenLeft))
-            {
-                if (generic.Failed)
-                {
-                    return ParseResult<IExpression>.Error();
-                }
-                
-                var left = ConsumeAny()!;
-                var args = ParseDelimited(ParseExpression);
-                var right = Consume(TokenType.ParenRight);
-                if (right is null) return ParseResult<IExpression>.Error();
-
-                return ParseResult<IExpression>.Successful(new FunctionCallExpr(
-                    identifier,
-                    generic.Value,
-                    left,
-                    args.Value,
-                    right,
-                    identifier.Start,
-                    right.End
-                ));
-            }
-
-            // unparse the generic cuz it wasn't supposed to be parsed
-            _current = cr;
-            Errs.RemoveRange(err, Errs.Count - err);
-        }
-        else if (Check(TokenType.ParenLeft))
-        {
-            var left = ConsumeAny()!;
-            var args = ParseDelimited(ParseExpression);
-            var right = Consume(TokenType.ParenRight);
-            if (right is null) return ParseResult<IExpression>.Error();
-
-            return ParseResult<IExpression>.Successful(new FunctionCallExpr(
-                identifier,
-                null,
-                left,
-                args.Value,
-                right,
-                identifier.Start,
-                right.End
-            ));
-        }
-
-        if (Check(TokenType.Equals))
-        {
-            var eql = ConsumeAny()!;
-            var right = ParseExpression();
-            if (right.Failed) return ParseResult<IExpression>.Error();
-
-            return ParseResult<IExpression>.Successful(new AssignmentExpr(
-                identifier,
-                eql,
-                right.Value!,
-                identifier.Start,
-                right.Value!.End
-            ));
-        }
-
-        return ParseResult<IExpression>.Successful(identifier);
+        var identifier = ConsumeAny()!;
+        return ParseResult<IExpression>.Successful(new MemberAccessExpr(
+            null,
+            null,
+            identifier,
+            identifier.Start,
+            identifier.End
+        ));
     }
 
     private ParseResult<IExpression> ParseIfExpr()
@@ -844,8 +905,8 @@ public class Parser
 
     private ParseResult<MatchExpr.IMatchCase> ParseUnionCase()
     {
-        var ident = ParseIdentifier();
-        if (ident.Failed) return ParseResult<MatchExpr.IMatchCase>.Inherit(ident);
+        var ident = Consume(TokenType.Identifier);
+        if (ident is null) return ParseResult<MatchExpr.IMatchCase>.WrongConstruct();
 
         var leftParen = Consume(TokenType.ParenLeft);
         if (leftParen is null) return ParseResult<MatchExpr.IMatchCase>.WrongConstruct();
@@ -861,15 +922,14 @@ public class Parser
         var body = ParseBlock();
         if (body.Failed) return ParseResult<MatchExpr.IMatchCase>.Error();
 
-        var identifier = ident.Value!;
         return ParseResult<MatchExpr.IMatchCase>.Successful(new MatchExpr.UnionCase(
-            identifier,
+            ident,
             leftParen,
             @params.Value!,
             rightParen,
             arrow,
             body.Value!,
-            identifier.Start,
+            ident.Start,
             body.Value!.End
         ));
     }
@@ -961,7 +1021,7 @@ public class Parser
     {
         var at = ConsumeAny()!;
 
-        var ident = ParseIdentifier();
+        var ident = ParseMemberAccess(out _, canHaveFunction: false);
         if (ident.Failed) return ParseResult<IExpression>.Error();
 
         var leftParen = Consume(TokenType.ParenLeft);
