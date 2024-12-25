@@ -1,0 +1,90 @@
+lexer grammar BeanieLexer;
+
+// Keywords
+PUBLIC: 'public';
+PRIVATE: 'private';
+PROTECTED: 'protected';
+
+CLASS: 'class';
+UNION: 'union';
+ENUM: 'enum';
+INTERFACE: 'interface';
+TYPE: 'type';
+NAMESPACE: 'namespace';
+
+DEFER: 'defer';
+NEW: 'new';
+
+THIS: 'this';
+GET: 'get';
+SET: 'set';
+MATCH: 'match';
+IF: 'if';
+ELSE: 'else';
+FOR: 'for';
+WHILE: 'while';
+RETURN: 'return';
+
+// Literals
+LITERAL_STRING: '"' (ESC_SEQ | ~["\\])* '"';
+LITERAL_NUMBER: [0-9]+ ('.' [0-9]+)?;
+LITERAL_BOOL: 'true' | 'false';
+CODE_BLOCK: '@{' .*? '}@';
+
+// Relational Operators
+GREATER_THAN: '>';
+LESS_THAN: '<';
+EQUALITY: '==';
+GREATER_THAN_EQUALITY: '>=';
+LESS_THAN_EQUALITY: '<=';
+NOT_EQUAL: '!=';
+
+// Logical Operators
+BANG: '!';
+OR: '||';
+AND: '&&';
+
+// Bitwise Operators
+PIPE: '|';
+AMPERSAND: '&';
+
+// Assignment
+EQUALS: '=';
+
+// Separators
+COMMA: ',';
+DOT: '.';
+SEMICOLON: ';';
+COLON: ':';
+AT: '@';
+
+// Parentheses and Braces
+PAREN_LEFT: '(';
+PAREN_RIGHT: ')';
+CURLY_LEFT: '{';
+CURLY_RIGHT: '}';
+SQUARE_LEFT: '[';
+SQUARE_RIGHT: ']';
+
+// Arrow
+ARROW: '=>';
+
+// Arithmetic Operators
+PLUS: '+';
+MINUS: '-';
+STAR: '*';
+SLASH: '/';
+PERCENT: '%';
+
+// Misc
+UNDERSCORE: '_';
+
+// Identifiers
+IDENTIFIER: [a-zA-Z_][a-zA-Z0-9_]*;
+
+// Whitespace and Comments
+WS: [ \t\r\n]+ -> skip;
+LINE_COMMENT: '//' ~[\r\n]* -> skip;
+
+// Fragments
+fragment ESC_SEQ: '\\' ['"\\bfnrt/]|'\\u' [0-9a-fA-F]{4};

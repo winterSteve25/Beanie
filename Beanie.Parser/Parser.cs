@@ -345,7 +345,8 @@ public class Parser
     /// <param name="f">DO NOT CHANGE, use false</param>
     /// <param name="canHaveFunction">Whether accepts function in chain</param>
     /// <returns></returns>
-    private ParseResult<MemberAccessExpr> ParseMemberAccess(out IExpression? n, bool f = false, bool canHaveFunction = true)
+    private ParseResult<MemberAccessExpr> ParseMemberAccess(out IExpression? n, bool f = false,
+        bool canHaveFunction = true)
     {
         // First parse any primary expression
         var left = ParsePrimaryExpr();
@@ -401,9 +402,10 @@ public class Parser
                     {
                         left = ParseResult<IExpression>.Successful(typ.Identifier);
                     }
-                    
+
                     break;
                 }
+
                 n = left.Value!;
                 return ParseResult<MemberAccessExpr>.WrongConstruct();
             }
@@ -1091,6 +1093,10 @@ public class Parser
             ));
         }
 
+        // var assignment = TryParse(ParseAssignment);
+        // if (assignment.Success) return assignment;
+        // if (!assignment.IsDifferentConstruct) return ParseResult<IStatement>.Error();
+        //
         // Try to parse variable declaration first
         var varDecl = TryParse(ParseVarDecl);
         if (varDecl.Success) return varDecl;
@@ -1109,6 +1115,30 @@ public class Parser
             semi,
             expression.Start,
             semi.End
+        ));
+    }
+
+    private ParseResult<IStatement> ParseAssignment()
+    {
+        var member = ParseMemberAccess(out _);
+        if (member.Failed) return ParseResult<IStatement>.Inherit(member);
+
+        var eql = Consume(TokenType.Equals);
+        if (eql is null) return ParseResult<IStatement>.WrongConstruct();
+
+        var expr = ParseExpression();
+        if (expr.Failed) return ParseResult<IStatement>.Error();
+
+        var semicolon = Consume(TokenType.Semicolon);
+        if (semicolon is null) return ParseResult<IStatement>.Error();
+
+        return ParseResult<IStatement>.Successful(new AssignmentStatement(
+            member.Value!,
+            eql,
+            expr.Value!,
+            semicolon,
+            member.Value!.Start,
+            semicolon.End
         ));
     }
 
